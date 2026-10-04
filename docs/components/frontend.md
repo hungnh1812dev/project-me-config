@@ -4,9 +4,10 @@ The public website: a Next.js standalone server with Auth.js. It renders pages f
 content, which it fetches over GraphQL from its server.
 
 - **Base:** `apps/frontend/`
-- **Flux Kustomization:** `project-me-frontend-sync-prod` (`cluster/me/frontend-sync.yaml`)
-- **ConfigMaps:** `project-me-prod-shared-config` (template `templates/shared-configmap.example.yaml`)
-  and `project-me-frontend-prod-config` (template `templates/frontend-configmap.example.yaml`)
+- **Flux Kustomization:** `frontend-sync` in the environment's namespace (`cluster-base/frontend-sync.yaml`,
+  image tag in `cluster/me/<env>/frontend-sync-overlay.yaml`)
+- **ConfigMaps:** `shared-config` (template `templates/shared-configmap.example.yaml`)
+  and `frontend-config` (template `templates/frontend-configmap.example.yaml`), both in `<ns>`
 - **Secret:** `<APP_SERVICE_NAME>-<APP_ENV>-secrets` (template `templates/frontend-secret.example.yaml`)
 
 Names below use `<name>` for `<APP_SERVICE_NAME>-<APP_ENV>` (see
@@ -39,16 +40,16 @@ placeholder isn't a valid hostname, so the apply fails instead.
 
 | Probe | Check | Initial delay | Period | Timeout |
 |---|---|---|---|---|
-| Readiness | `GET /api/health` on `http` | — | 10s | 8s |
-| Liveness | TCP connect on `http` | 10s | 20s | 1s (default) |
+| Readiness | `GET /api/health/ready` on `http` | — | 10s | 8s |
+| Liveness | `GET /api/health/live` on `http` | 10s | 20s | 1s (default) |
 
 These are chosen so that problems with cms-api don't take the frontend down:
 
-- `/api/health` always returns 200 and reports cms-api's status in the body, so readiness only
-  checks that the Next server answers.
+- `/api/health/ready` always returns 200 and reports cms-api's status in the body, so readiness
+  only checks that the Next server answers.
 - The route stops waiting for cms-api after 5s. The 8s probe timeout is longer, so a hanging cms-api
   doesn't mark the pod unready.
-- Liveness is a TCP check only, so a slow cms-api never gets the frontend restarted.
+- `/api/health/live` never calls cms-api, so a slow cms-api never gets the frontend restarted.
 
 ## Resources (CPU / memory)
 

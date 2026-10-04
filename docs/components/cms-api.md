@@ -4,9 +4,10 @@ The CMS backend: a Bun server with Prisma on Postgres, serving REST under `/api/
 The cms-admin SPA calls it from the browser, and the frontend calls it from its server.
 
 - **Base:** `apps/cms-api/`
-- **Flux Kustomization:** `project-me-cms-api-sync-prod` (`cluster/me/cms-api-sync.yaml`)
-- **ConfigMaps:** `project-me-prod-shared-config` (template `templates/shared-configmap.example.yaml`)
-  and `project-me-cms-api-prod-config` (template `templates/cms-api-configmap.example.yaml`)
+- **Flux Kustomization:** `cms-api-sync` in the environment's namespace (`cluster-base/cms-api-sync.yaml`,
+  image tag in `cluster/me/<env>/cms-api-sync-overlay.yaml`)
+- **ConfigMaps:** `shared-config` (template `templates/shared-configmap.example.yaml`)
+  and `cms-api-config` (template `templates/cms-api-configmap.example.yaml`), both in `<ns>`
 - **Secret:** `<APP_SERVICE_NAME>-<APP_ENV>-secrets` (template `templates/cms-api-secret.example.yaml`)
 
 Names below use `<name>` for `<APP_SERVICE_NAME>-<APP_ENV>` and `<ns>` for
@@ -45,10 +46,15 @@ command must stay in sync with the `CMD` in the app repository's Dockerfile.
 
 | Probe | Check | Initial delay | Period |
 |---|---|---|---|
-| Readiness | `GET /health` on `APP_PORT` | 5s | 10s |
-| Liveness | `GET /health` on `APP_PORT` | 15s | 20s |
+| Readiness | `GET /health/ready` on `APP_PORT` | 5s | 10s |
+| Liveness | `GET /health/live` on `APP_PORT` | 15s | 20s |
 
-`/health` is served outside the `/api/v1` prefix.
+Both endpoints are served outside the `/api/v1` prefix.
+
+- `/health/live` only checks that the process answers, with no dependency checks, so a database
+  outage never gets cms-api restarted.
+- `/health/ready` also checks the database, so while the database is down the pod is taken out of
+  the Service until it recovers.
 
 ## Resources (CPU / memory)
 
