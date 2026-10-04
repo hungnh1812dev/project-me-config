@@ -1,29 +1,30 @@
 # Shared project-info ConfigMap template: the ${APP_*} values that cms-api, cms-admin and frontend
-# all use. Every sync file in cluster/me reads this first and its own per-app ConfigMap second
-# (postBuild.substituteFrom, which only reads flux-system), so a per-app key would override one here.
-# Placeholders only; never commit real values. Created by hand on the cluster BEFORE the per-app
-# ConfigMaps and before any app's first Flux deploy:
-#   cp templates/shared-configmap.example.yaml templates/shared-configmap.yaml   # gitignored; fill in values
-#   kubectl apply --server-side -f templates/shared-configmap.yaml
-# metadata.name is fixed: it must match the first substituteFrom ConfigMap in every
-# cluster/me/*-sync.yaml. If it's missing, all three Kustomizations fail instead of rendering empty names.
-# Derived names: namespace <APP_NAMESPACE>-<APP_ENV>, resources <APP_SERVICE_NAME>-<APP_ENV>.
+# all use. Every sync Kustomization reads it first (postBuild.substituteFrom), then its own per-app
+# ConfigMap, so a per-app key overrides one here.
+# Placeholders only; never commit real values. One per environment, created by hand in that
+# environment's namespace (which is also the Flux namespace, <APP_NAMESPACE>-<APP_ENV>):
+#   kubectl create namespace <app-namespace>-<app-env>   # if bootstrap hasn't created it yet
+#   cp templates/shared-configmap.example.yaml templates/shared-configmap-<app-env>.yaml   # gitignored; fill in values
+#   kubectl apply --server-side -f templates/shared-configmap-<app-env>.yaml
+# metadata.name is fixed (shared-config): the namespace keeps environments and projects apart.
+# APP_NAMESPACE-APP_ENV must equal metadata.namespace, the namespace Flux was bootstrapped into.
 # Quote every value: ConfigMap data must be strings. After a change, re-apply and reconcile each app:
-#   flux reconcile kustomization project-me-<svc>-sync-prod
+#   flux -n <app-namespace>-<app-env> reconcile kustomization <svc>-sync
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: <app-name>-<app-env>-shared-config
-  namespace: flux-system
+  name: shared-config
+  namespace: <app-namespace>-<app-env>
 data:
   # Application / product name (used in the app.kubernetes.io/name label)
   APP_NAME: "<app-name>"
   # Base namespace (all three apps run in <APP_NAMESPACE>-<APP_ENV>)
   APP_NAMESPACE: "<app-namespace>"
-  # Environment, e.g. prod
+  # Environment, e.g. prod or staging
   APP_ENV: "<app-env>"
   # Bare domain, no scheme or subdomain. frontend is served at <APP_DOMAIN>, cms-admin at
-  # admin.<APP_DOMAIN>, cms-api at api.<APP_DOMAIN>. Set it BEFORE the first Flux apply.
+  # admin.<APP_DOMAIN>, cms-api at api.<APP_DOMAIN>. Set it BEFORE the first Flux apply. Must differ
+  # per environment on a shared cluster (e.g. staging.example.com), or the Ingress hosts collide.
   APP_DOMAIN: "<example.com>"
   # cert-manager ClusterIssuer that issues every app's TLS certificate
   APP_TLS_CLUSTER_ISSUER: "<cluster-issuer-name>"
