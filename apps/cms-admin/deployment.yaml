@@ -36,7 +36,7 @@ spec:
           # nginx listens on 80 (apps/cms-admin/nginx.conf); an image fact, not a project value.
           ports:
             - name: http
-              containerPort: 80
+              containerPort: 8080
           # /health/live and /health/ready are answered by nginx itself (no file or upstream
           # involved), so neither depends on cms-api.
           livenessProbe:
