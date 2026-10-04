@@ -41,13 +41,13 @@ spec:
           # involved), so neither depends on cms-api.
           livenessProbe:
             httpGet:
-              path: /health/live
+              path: /healthz
               port: http
             initialDelaySeconds: 5
             periodSeconds: 20
           readinessProbe:
             httpGet:
-              path: /health/ready
+              path: /healthz
               port: http
             periodSeconds: 10
           resources:
