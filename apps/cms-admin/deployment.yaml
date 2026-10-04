@@ -37,6 +37,9 @@ spec:
           ports:
             - name: http
               containerPort: 8080
+          envFrom:
+            - secretRef:
+                name: ${APP_SERVICE_NAME}-secrets
           # /health/live and /health/ready are answered by nginx itself (no file or upstream
           # involved), so neither depends on cms-api.
           livenessProbe:
