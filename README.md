@@ -7,7 +7,7 @@ into that environment's namespace on a k3s server that can host other projects' 
 
 | Service | What it is | Served at |
 |---|---|---|
-| frontend | Next.js public website | `https://<domain>` |
+| web | Next.js public website | `https://<domain>` |
 | cms-admin | CMS admin SPA (nginx) | `https://admin.<domain>` |
 | cms-api | CMS backend (Bun + Prisma, Postgres outside the cluster) | `https://api.<domain>` |
 
@@ -31,9 +31,9 @@ Request path
       │             │                  │
   Service       Service            Service           ClusterIP
       │             │                  │
-  frontend pod  cms-admin pod      cms-api pod ──► Postgres (external)
+  web pod       cms-admin pod      cms-api pod ──► Postgres (external)
       └──────── in-cluster ───────────►┘
-                (frontend server → cms-api)
+                (web server → cms-api)
 
 Deploy path (per environment: <env> = staging | prod, <ns> = project-me-<env>)
 
@@ -46,8 +46,8 @@ Deploy path (per environment: <env> = staging | prod, <ns> = project-me-<env>)
                      Kustomization <ns>  (./cluster/me/<env>)
                         ├─► cms-api-sync   ─► apps/cms-api
                         ├─► cms-admin-sync ─► apps/cms-admin
-                        └─► frontend-sync  ─► apps/frontend
-                              ${APP_*} filled from shared-config + <svc>-config in <ns>
+                        └─► web-sync       ─► apps/web
+                              ${APP_*} filled from shared-configmap + <prefix>-configmap in <ns>
 ```
 
 ## Layout
@@ -56,7 +56,7 @@ Deploy path (per environment: <env> = staging | prod, <ns> = project-me-<env>)
 apps/
   cms-api/                  Deployment (with a migration init container) + Service + Ingress + Middleware
   cms-admin/                Deployment + Service + Ingress + Middleware
-  frontend/                 Deployment + Service + Ingress + Middleware
+  web/                      Deployment + Service + Ingress + Middleware
 cluster-base/               the three sync Kustomizations, environment-free
 cluster/me/<env>/           one Flux instance per environment (staging, prod)
   kustomization.yaml        what the root Kustomization applies: <ns>/ + cluster-base, in <ns>
@@ -64,8 +64,8 @@ cluster/me/<env>/           one Flux instance per environment (staging, prod)
   <svc>-sync-overlay.yaml   APP_IMAGE_TAG for that app in that environment
 templates/
   shared-configmap.example.yaml   ${APP_*} values all three apps use (applied by hand to <ns>)
-  <svc>-configmap.example.yaml    per-app ${APP_*} values (3, applied by hand to <ns>)
-  *-secret.example.yaml     runtime Secrets for cms-api and frontend (applied by hand)
+  <api|admin|web>-configmap.example.yaml   per-app ${APP_*} values (3, applied by hand to <ns>)
+  *-secrets.example.yaml    runtime Secrets for cms-api (main and init), cms-admin and web (applied by hand)
 docs/                       audit, component docs, deployment guide
 .gitignore                  keeps filled-in templates/*.yaml out of git
 ```
@@ -74,7 +74,7 @@ docs/                       audit, component docs, deployment guide
 
 Starting from an empty server: install k3s and cert-manager, set up DNS, run `flux bootstrap` per
 environment with `--namespace=project-me-<env> --path=cluster/me/<env> --watch-all-namespaces=false
---network-policy=false`, then apply the four ConfigMaps and two Secrets into that namespace by hand.
+--network-policy=false`, then apply the four ConfigMaps and four Secrets into that namespace by hand.
 Moving from the old single `flux-system` instance: [DEPLOYMENT.md, step 16](docs/DEPLOYMENT.md#16-migrating-from-the-single-flux-system-instance).
 Follow [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) step by step.
 
@@ -88,7 +88,7 @@ Follow [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) step by step.
 | [docs/components/configuration.md](docs/components/configuration.md) | `${APP_*}` variables, naming scheme, ConfigMap vs Secret, image-tag contract |
 | [docs/components/cms-api.md](docs/components/cms-api.md) | cms-api resources, probes, Secret keys, migrations |
 | [docs/components/cms-admin.md](docs/components/cms-admin.md) | cms-admin resources, nginx capabilities, build-time API URL |
-| [docs/components/frontend.md](docs/components/frontend.md) | frontend resources, probe design, Secret keys |
+| [docs/components/web.md](docs/components/web.md) | web resources, probe design, Secret keys |
 
 ## Validating a change
 
@@ -97,7 +97,7 @@ There's no CI in this repository, so render every app and environment before pus
 ```bash
 kubectl kustomize apps/cms-api
 kubectl kustomize apps/cms-admin
-kubectl kustomize apps/frontend
+kubectl kustomize apps/web
 kubectl kustomize cluster/me/staging
 kubectl kustomize cluster/me/prod     # needs project-me-prod/gotk-*.yaml, written by the prod bootstrap
 ```
@@ -121,7 +121,7 @@ Anything pushed to `staging` or `main` is applied to that environment within a f
    ```bash
    flux -n <ns> get kustomizations              # all four READY True
    kubectl -n <ns> get pods                     # all Running and READY 1/1
-   curl -I https://<domain>/api/health/ready    # frontend: 200
+   curl -I https://<domain>/api/health/ready    # web: 200
    curl -I https://admin.<domain>/health/ready  # cms-admin: 200
    curl -I https://api.<domain>/health/ready    # cms-api: 200
    ```

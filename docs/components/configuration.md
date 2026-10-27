@@ -18,6 +18,18 @@ files.
 | Secret `backup-secrets` | `<ns>`, applied by hand | the backup CronJob only (`envFrom`) | Backup job config, including its write-capable bucket token |
 | ConfigMap `database-ca-configmap` | `<ns>`, applied by hand | the pods that mount it, as a file | The database's public CA certificate. Exception: Flux does not read it |
 
+Naming rule: every object is named `<prefix>-configmap` or `<prefix>-secrets`, with the prefix `api`,
+`admin` or `web` (and `shared`, `database-ca`, `backup` for the shared objects). To add the next app,
+add one `<prefix>-configmap` to its sync file's `substituteFrom` and one `<prefix>-secrets` to its
+Deployment's `envFrom`, and nothing else.
+
+The deployment docs (`deployment/*.md`) say `cms-api-config`, `cms-api-secrets`, `cms-api-migrate-db`,
+`database-ca` and `postgres-backup`. In this repository they are `api-configmap`, `api-secrets`,
+`api-init-secrets`, `database-ca-configmap` and `backup-secrets`. Older names that appear in
+[AUDIT.md](../AUDIT.md) map the same way: `shared-config` is `shared-configmap`, `cms-admin-config` is
+`admin-configmap`, `frontend-config` is `web-configmap`, `cms-admin-secrets` is `admin-secrets` and
+`frontend-secrets` is `web-secrets`.
+
 Placement rule: a value the pod needs at runtime goes in a Secret; a value Flux must substitute
 before the pod exists goes in a ConfigMap.
 
@@ -35,13 +47,13 @@ Templates are in `templates/*.example.yaml`:
 Copy one to the same name without `.example`, fill it in, and apply it with
 `kubectl apply --server-side -f`. The filled-in copies are gitignored.
 
-`database-ca-configmap` takes effect only once the cms-api Deployment mounts it (follow-up), and
+Both cms-api containers mount `database-ca-configmap` at `/etc/abyss/database-ca`, and
 `DB_SSL_MODE=verify-full` needs that mount. `backup-secrets` is read only by a backup CronJob, which
 is not planned yet.
 
 ## Variables
 
-| Variable | Source | cms-api | cms-admin | frontend | Used for |
+| Variable | Source | cms-api | cms-admin | web | Used for |
 |---|---|---|---|---|---|
 | `APP_NAME` | shared ConfigMap | ✓ | ✓ | ✓ | The `app.kubernetes.io/name` label |
 | `APP_NAMESPACE` | shared ConfigMap | ✓ | ✓ | ✓ | Namespace base (the apps run in `<APP_NAMESPACE>-<APP_ENV>`) |
@@ -53,7 +65,7 @@ is not planned yet.
 | `APP_PORT` | per-app ConfigMap | ✓ | — | ✓ | Container and Service port (cms-api also gets it as `PORT`) |
 | `APP_IMAGE_TAG` | sync file | ✓ | ✓ | ✓ | Image tag (cms-api's init image uses `<tag>-init`) |
 
-cms-admin listens on 80, fixed by its nginx image, so it has no `APP_PORT`. The frontend image sets
+cms-admin listens on 80, fixed by its nginx image, so it has no `APP_PORT`. The web image sets
 `PORT=3000` itself, so its `APP_PORT` must be `"3000"`: it tells Kubernetes the port, it doesn't
 change it.
 
@@ -85,12 +97,12 @@ fixed: the namespace keeps environments and projects apart.
   apps share one namespace per environment. Set both only in the shared ConfigMap, never per app.
 - **Use a different `APP_DOMAIN` per environment** on a shared cluster (e.g. `staging.example.com`),
   or the staging and prod Ingresses claim the same hosts.
-- **Use a different `APP_SERVICE_NAME`** per service, e.g. `cms-api`, `cms-admin`, `frontend`.
+- **Use a different `APP_SERVICE_NAME`** per service, e.g. `cms-api`, `cms-admin`, `web`.
   Two services with the same value would render resources with the same name. The `web-secrets`
   template's in-cluster cms-api URL assumes cms-api uses `cms-api`.
 - **Set `APP_DOMAIN` before the first apply.** A missing value fails the apply instead of
   exposing a catch-all Ingress. cms-api and cms-admin get the invalid host `api.` / `admin.`, and
-  the frontend gets `APP_DOMAIN-is-not-set`.
+  web gets `APP_DOMAIN-is-not-set`.
 - **Don't put `APP_IMAGE_TAG` in a ConfigMap.** `postBuild.substitute` takes precedence over
   `substituteFrom`, so it would be ignored.
 - A variable missing from both sources becomes an empty string. It doesn't fail the render.
@@ -130,7 +142,7 @@ instance ([DEPLOYMENT.md](../DEPLOYMENT.md), steps 15 and 5).
 | Namespace | `<ns>` | `<ns>` |
 | Contains | Non-secret project info (`APP_*`), shared + per-app | App settings and credentials (DB password, JWT keys, `AUTH_SECRET`, ...) |
 | Consumer | Flux, at render time | The pods, at start |
-| Services | all three | cms-api, cms-admin, frontend, backup job |
+| Services | all three | cms-api, cms-admin, web, backup job |
 | After a change | re-apply, then `flux -n <ns> reconcile kustomization <svc>-sync` (for the shared ConfigMap: all three) | re-apply, then `kubectl -n <ns> rollout restart deploy/<svc>-<env>` (the backup job picks it up on its next run) |
 
 A ConfigMap change only takes effect after Flux re-renders, on the next interval or a manual
@@ -143,7 +155,7 @@ The app repository's pipeline builds and pushes an image, then commits the new t
 environment's branch. Flux applies it on its next poll. The contract:
 
 - **File:** `cluster/me/<env>/<svc>-sync-overlay.yaml`, one per service (`cms-api`, `cms-admin`,
-  `frontend`) and environment.
+  `web`) and environment.
 - **Branch:** `staging` for `cluster/me/staging/`, `main` for `cluster/me/prod/`. Each environment's
   tags live in their own files, so merging `staging` into `main` never changes a prod tag.
 - **Line:** `      APP_IMAGE_TAG: "<tag>"` under `spec.postBuild.substitute`, with the tag in double quotes.

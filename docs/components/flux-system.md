@@ -19,7 +19,7 @@ Another project (another config repository) bootstraps the same way into `<proje
 | Secret | `flux-system` | created by `flux bootstrap` (not in git) | SSH deploy key for GitHub |
 | GitRepository | `<ns>` | `cluster/me/<env>/<ns>/gotk-sync.yaml` | Polls the environment's branch every 1m |
 | Kustomization | `<ns>` | `cluster/me/<env>/<ns>/gotk-sync.yaml` | The root: applies `./cluster/me/<env>` every 10m |
-| Kustomization | `cms-api-sync`, `cms-admin-sync`, `frontend-sync` | `cluster-base/<svc>-sync.yaml` + `cluster/me/<env>/<svc>-sync-overlay.yaml` | Applies `./apps/<svc>` |
+| Kustomization | `cms-api-sync`, `cms-admin-sync`, `web-sync` | `cluster-base/<svc>-sync.yaml` + `cluster/me/<env>/<svc>-sync-overlay.yaml` | Applies `./apps/<svc>` |
 
 `flux bootstrap --namespace=<ns>` names the GitRepository and the root Kustomization `<ns>`, not
 `flux-system`, and writes its files to `cluster/me/<env>/<ns>/`, not `flux-system/`.
@@ -40,15 +40,15 @@ Kustomization project-me-staging          Kustomization project-me-prod
   ├── ../../../cluster-base                 ├── ../../../cluster-base
   │     cms-api-sync ──► apps/cms-api       │     (same three sync files)
   │     cms-admin-sync ─► apps/cms-admin    │
-  │     frontend-sync ──► apps/frontend     │
+  │     web-sync ──► apps/web               │
   └── <svc>-sync-overlay.yaml (image tags)  └── <svc>-sync-overlay.yaml
   everything in namespace project-me-staging   everything in namespace project-me-prod
 ```
 
 `cluster/me/<env>/kustomization.yaml` sets `namespace: <ns>` on everything it renders, so the sync
 Kustomizations, the ConfigMaps they read and the apps they deploy all live in the Flux namespace.
-Each sync Kustomization renders `apps/<svc>`, substitutes `${APP_*}` from `shared-config` and
-`<svc>-config` (see [configuration.md](configuration.md)), and applies the result.
+Each sync Kustomization renders `apps/<svc>`, substitutes `${APP_*}` from `shared-configmap` and
+the app's ConfigMap (`api-configmap`, `admin-configmap` or `web-configmap`) (see [configuration.md](configuration.md)), and applies the result.
 
 Promotion: changes land on `staging` first, then `staging` is merged into `main`. Image tags live in
 per-environment files, so a merge carries the staging tag files along without touching prod's.
@@ -93,11 +93,11 @@ All three sync files share these settings:
 | `prune` | `true` | A resource removed from `apps/<svc>` is deleted from the cluster |
 | `wait` | `true` | Ready only once every applied resource is healthy (Deployment rolled out, etc.) |
 | `timeout` | `5m` | How long `wait` waits before the reconcile is marked failed |
-| `postBuild.substituteFrom` | `shared-config`, then `<svc>-config` | The `${APP_*}` values: shared first, per-app second (per-app wins on a clash) |
+| `postBuild.substituteFrom` | `shared-configmap`, then `api-configmap` / `admin-configmap` / `web-configmap` | The `${APP_*}` values: shared first, per-app second (per-app wins on a clash) |
 | `postBuild.substitute` | `APP_IMAGE_TAG` | The image tag, from `cluster/me/<env>/<svc>-sync-overlay.yaml` |
 
-There's no `dependsOn` between apps. The frontend tolerates cms-api being down, and a `dependsOn`
-would block frontend deploys whenever cms-api isn't Ready ([AUDIT.md](../AUDIT.md), finding 12).
+There's no `dependsOn` between apps. web tolerates cms-api being down, and a `dependsOn`
+would block web deploys whenever cms-api isn't Ready ([AUDIT.md](../AUDIT.md), finding 12).
 
 ## Pruning
 
@@ -110,8 +110,8 @@ Both levels have `prune: true`, so deletions in git propagate:
 To stop an app from changing without deleting it, suspend it instead:
 
 ```bash
-flux -n <ns> suspend kustomization frontend-sync
-flux -n <ns> resume kustomization frontend-sync
+flux -n <ns> suspend kustomization web-sync
+flux -n <ns> resume kustomization web-sync
 ```
 
 ## Common commands
