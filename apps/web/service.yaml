@@ -1,4 +1,4 @@
-# frontend ClusterIP Service on ${APP_PORT} (the image's PORT), selecting the Deployment's pods.
+# web ClusterIP Service on ${APP_PORT} (the image's PORT), selecting the Deployment's pods.
 apiVersion: v1
 kind: Service
 metadata:

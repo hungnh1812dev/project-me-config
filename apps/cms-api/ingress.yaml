@@ -1,5 +1,5 @@
 # Public HTTPS entry for cms-api on the k3s-bundled Traefik, at api.${APP_DOMAIN}. The bare domain
-# is for the frontend and admin.<domain> is for cms-admin. All paths go to the Service.
+# is for web and admin.<domain> is for cms-admin. All paths go to the Service.
 # cert-manager issues the <svc>-<env>-tls certificate from the ClusterIssuer in
 # ${APP_TLS_CLUSTER_ISSUER}. If APP_DOMAIN is missing, Flux substitutes "" and the host becomes
 # "api.", which the API server rejects, so the Flux apply fails instead of exposing a catch-all.
