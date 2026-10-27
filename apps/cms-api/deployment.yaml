@@ -1,6 +1,8 @@
 # cms-api Deployment: a `prisma migrate deploy` init container, then the app. Both images share
 # ${APP_IMAGE_TAG} (the app tag, and the same tag + `-init`), so they always come from one commit.
-# Runtime config and secrets come from the hand-made <svc>-<env>-secrets Secret via envFrom.
+# Runtime config and secrets come from hand-made Secrets via envFrom: the init container reads only
+# api-init-secrets, the app reads api-secrets (templates: templates/api-init-secrets.example.yaml,
+# templates/api-secrets.example.yaml).
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -25,12 +27,23 @@ spec:
       securityContext:
         seccompProfile:
           type: RuntimeDefault
+      # The Supabase CA for DB_SSL_MODE=verify-full. The mount path must equal the directory of
+      # DB_SSL_ROOT_CERT_PATH in api-secrets and api-init-secrets. Not optional: a missing ConfigMap
+      # keeps the new pod in ContainerCreating while the old pod keeps serving.
+      volumes:
+        - name: database-ca
+          configMap:
+            name: database-ca-configmap
       initContainers:
         - name: init
           image: ${APP_IMAGE_REPO}:${APP_IMAGE_TAG}-init
           envFrom:
             - secretRef:
-                name: ${APP_SERVICE_NAME}-${APP_ENV}-secrets
+                name: api-init-secrets
+          volumeMounts:
+            - name: database-ca
+              mountPath: /etc/abyss/database-ca
+              readOnly: true
           securityContext:
             allowPrivilegeEscalation: false
             capabilities:
@@ -62,7 +75,11 @@ spec:
               containerPort: ${APP_PORT}
           envFrom:
             - secretRef:
-                name: ${APP_SERVICE_NAME}-secrets
+                name: api-secrets
+          volumeMounts:
+            - name: database-ca
+              mountPath: /etc/abyss/database-ca
+              readOnly: true
           # cms-api serves /health/* outside the api/v1 prefix. Liveness only checks the process
           # answers: a database outage must take the pod out of rotation (readiness), not restart it.
           livenessProbe:

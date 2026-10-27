@@ -1,4 +1,4 @@
-# web: applies ./apps/web with ${APP_*} from the shared ConfigMap, then the web ConfigMap
+# web: applies ./apps/web with ${APP_*} from shared-configmap, then web-configmap
 # (a key in both takes the web value). Environment-free: cluster/me/<env>/ puts it in the Flux
 # namespace, points sourceRef at that namespace's GitRepository and adds APP_IMAGE_TAG.
 # No dependsOn cms-api on purpose: web probes tolerate cms-api being down, and a
@@ -26,6 +26,6 @@ spec:
     # instead of rendering empty names.
     substituteFrom:
       - kind: ConfigMap
-        name: shared-config
+        name: shared-configmap
       - kind: ConfigMap
-        name: frontend-config
+        name: web-configmap
