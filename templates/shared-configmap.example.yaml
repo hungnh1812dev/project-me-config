@@ -4,8 +4,8 @@
 # Placeholders only; never commit real values. One per environment, created by hand in that
 # environment's namespace (which is also the Flux namespace, <APP_NAMESPACE>-<APP_ENV>):
 #   kubectl create namespace <app-namespace>-<app-env>   # if bootstrap hasn't created it yet
-#   cp templates/shared-configmap.example.yaml templates/shared-configmap-<app-env>.yaml   # gitignored; fill in values
-#   kubectl apply --server-side -f templates/shared-configmap-<app-env>.yaml
+#   cp templates/shared-configmap.example.yaml templates/shared-configmap.yaml   # gitignored; fill in values
+#   kubectl apply --server-side -f templates/shared-configmap.yaml
 # metadata.name is fixed (shared-configmap): the namespace keeps environments and projects apart.
 # APP_NAMESPACE-APP_ENV must equal metadata.namespace, the namespace Flux was bootstrapped into.
 # Quote every value: ConfigMap data must be strings. After a change, re-apply and reconcile each app:

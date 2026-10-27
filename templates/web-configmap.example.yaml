@@ -4,8 +4,8 @@
 # set here overrides the shared one.
 # Placeholders only; never commit real values. Created by hand on the cluster, after the shared
 # ConfigMap and before the web app's first Flux deploy:
-#   cp templates/web-configmap.example.yaml templates/web-configmap-<app-env>.yaml   # gitignored; fill in values
-#   kubectl apply --server-side -f templates/web-configmap-<app-env>.yaml
+#   cp templates/web-configmap.example.yaml templates/web-configmap.yaml   # gitignored; fill in values
+#   kubectl apply --server-side -f templates/web-configmap.yaml
 # metadata.name is fixed (web-configmap); metadata.namespace is the environment's namespace, the same
 # one as the shared ConfigMap.
 # Derived names: namespace <APP_NAMESPACE>-<APP_ENV>, resources <APP_SERVICE_NAME>-<APP_ENV>.

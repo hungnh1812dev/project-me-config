@@ -4,8 +4,8 @@
 # set here overrides the shared one.
 # Placeholders only; never commit real values. Created by hand on the cluster, after the shared
 # ConfigMap and before cms-admin's first Flux deploy:
-#   cp templates/admin-configmap.example.yaml templates/admin-configmap-<app-env>.yaml   # gitignored; fill in values
-#   kubectl apply --server-side -f templates/admin-configmap-<app-env>.yaml
+#   cp templates/admin-configmap.example.yaml templates/admin-configmap.yaml   # gitignored; fill in values
+#   kubectl apply --server-side -f templates/admin-configmap.yaml
 # metadata.name is fixed (admin-configmap); metadata.namespace is the environment's namespace, the same
 # one as the shared ConfigMap.
 # Derived names: namespace <APP_NAMESPACE>-<APP_ENV>, resources <APP_SERVICE_NAME>-<APP_ENV>.
