@@ -14,7 +14,7 @@
 # The cms-api URL is NOT here: it's baked into the image at build time as a build arg.
 # Runtime values go in the Secret (templates/admin-secrets.example.yaml).
 # Quote every value: ConfigMap data must be strings. After a change, re-apply and run
-#   flux -n <APP_NAMESPACE>-<APP_ENV> reconcile kustomization <admin-sync-name>
+#   flux -n <APP_NAMESPACE>-<APP_ENV> reconcile kustomization cms-admin-sync
 apiVersion: v1
 kind: ConfigMap
 metadata:

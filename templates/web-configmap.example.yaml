@@ -1,6 +1,6 @@
 # web ConfigMap template: the ${APP_*} values only the web app uses. The values shared by all
 # three apps (name, namespace, env, domain, TLS issuer) are in templates/shared-configmap.example.yaml;
-# the web Flux Kustomization reads that first and this second (postBuild.substituteFrom), so a key
+# cluster-base/web-sync.yaml reads that first and this second (postBuild.substituteFrom), so a key
 # set here overrides the shared one.
 # Placeholders only; never commit real values. Created by hand on the cluster, after the shared
 # ConfigMap and before the web app's first Flux deploy:
@@ -13,14 +13,14 @@
 # NEXT_PUBLIC_* values are build args of the image (GitHub Environment variables), not ConfigMap keys.
 # Quote every value: ConfigMap data must be strings.
 # After a change, re-apply and reconcile the web Kustomization:
-#   flux -n <APP_NAMESPACE>-<APP_ENV> reconcile kustomization <web-sync-name>
+#   flux -n <APP_NAMESPACE>-<APP_ENV> reconcile kustomization web-sync
 apiVersion: v1
 kind: ConfigMap
 metadata:
   name: web-configmap
   namespace: <app-namespace>-<app-env>
 data:
-  # Service within the application (resources are named <APP_SERVICE_NAME>-<APP_ENV>)
+  # Service within the application (resources are named <APP_SERVICE_NAME>-<APP_ENV>); value: web
   APP_SERVICE_NAME: "<app-service-name>"
   # Image repository without a tag (image <repo>:<tag>)
   APP_IMAGE_REPO: "<registry/owner/repo/image>"
