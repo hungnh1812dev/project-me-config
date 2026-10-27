@@ -1,20 +1,22 @@
-# cms-api ConfigMap template: the ${APP_*} values only cms-api uses. The values shared by all three
-# apps (name, namespace, env, domain, TLS issuer) are in templates/shared-configmap.example.yaml;
+# api-configmap: the ${APP_*} values only cms-api uses, read by Flux only. The values shared by all
+# three apps (name, namespace, env, domain, TLS issuer) are in templates/shared-configmap.example.yaml;
 # cluster-base/cms-api-sync.yaml reads that first and this second (postBuild.substituteFrom), so a key
 # set here overrides the shared one.
+# Runtime settings are not here: they live in api-secrets (main container) and api-init-secrets
+# (init container).
 # Placeholders only; never commit real values. Created by hand on the cluster, after the shared
 # ConfigMap and before cms-api's first Flux deploy:
-#   cp templates/cms-api-configmap.example.yaml templates/cms-api-configmap-<app-env>.yaml   # gitignored; fill in values
-#   kubectl apply --server-side -f templates/cms-api-configmap-<app-env>.yaml
-# metadata.name is fixed (cms-api-config); metadata.namespace is the environment's namespace, the same
+#   cp templates/api-configmap.example.yaml templates/api-configmap.yaml   # gitignored; fill in values
+#   kubectl apply --server-side -f templates/api-configmap.yaml
+# metadata.name is fixed (api-configmap); metadata.namespace is the environment's namespace, the same
 # one as the shared ConfigMap.
 # Derived names: namespace <APP_NAMESPACE>-<APP_ENV>, resources <APP_SERVICE_NAME>-<APP_ENV>.
-# Quote every value (e.g. "3000"): ConfigMap data must be strings. After a change, re-apply and run
+# Quote every value: ConfigMap data must be strings. After a change, re-apply and run
 # `flux -n <APP_NAMESPACE>-<APP_ENV> reconcile kustomization cms-api-sync`.
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: cms-api-config
+  name: api-configmap
   namespace: <app-namespace>-<app-env>
 data:
   # Service within the application (resources are named <APP_SERVICE_NAME>-<APP_ENV>)
