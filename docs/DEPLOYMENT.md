@@ -433,10 +433,23 @@ cms-admin is live on prod, so finish steps 1 to 3 on prod before the `staging` -
    Pairs `<old>` -> `<new>`: `shared-config` -> `shared-configmap`, `cms-api-config` ->
    `api-configmap`, `cms-admin-config` -> `admin-configmap`, `frontend-config` -> `web-configmap`.
 
-2. Copy the Secrets, piped and never written to disk (use `{apiVersion, kind, type, data, metadata}`
-   in the jq filter): `cms-api-secrets` -> `api-secrets`, `cms-admin-secrets` -> `admin-secrets`,
-   `frontend-secrets` -> `web-secrets`. For `api-init-secrets`, keep only the init keys of the
-   Secret the init container reads today, then add any missing key from
+2. Copy the Secrets, piped and never written to disk. The jq filter sets `metadata` to the new
+   name only, so the old last-applied annotation is never carried over:
+
+   ```bash
+   kubectl -n <ns> get secret cms-api-secrets -o json \
+     | jq '{apiVersion, kind, type, data, metadata: {name: "api-secrets", namespace: .metadata.namespace}}' \
+     | kubectl apply --server-side -f -
+   kubectl -n <ns> get secret cms-admin-secrets -o json \
+     | jq '{apiVersion, kind, type, data, metadata: {name: "admin-secrets", namespace: .metadata.namespace}}' \
+     | kubectl apply --server-side -f -
+   kubectl -n <ns> get secret frontend-secrets -o json \
+     | jq '{apiVersion, kind, type, data, metadata: {name: "web-secrets", namespace: .metadata.namespace}}' \
+     | kubectl apply --server-side -f -
+   ```
+
+   Copy only the ones that exist on that cluster today. For `api-init-secrets`, keep only the init
+   keys of the Secret the init container reads today, then add any missing key from
    `templates/api-init-secrets.example.yaml`:
 
    ```bash
