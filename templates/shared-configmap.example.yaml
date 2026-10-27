@@ -1,30 +1,30 @@
-# Shared project-info ConfigMap template: the ${APP_*} values that cms-api, cms-admin and frontend
+# Shared project-info ConfigMap template: the ${APP_*} values that the api, admin and web apps
 # all use. Every sync Kustomization reads it first (postBuild.substituteFrom), then its own per-app
-# ConfigMap, so a per-app key overrides one here.
+# ConfigMap (api-configmap, admin-configmap, web-configmap), so a per-app key overrides one here.
 # Placeholders only; never commit real values. One per environment, created by hand in that
 # environment's namespace (which is also the Flux namespace, <APP_NAMESPACE>-<APP_ENV>):
 #   kubectl create namespace <app-namespace>-<app-env>   # if bootstrap hasn't created it yet
 #   cp templates/shared-configmap.example.yaml templates/shared-configmap-<app-env>.yaml   # gitignored; fill in values
 #   kubectl apply --server-side -f templates/shared-configmap-<app-env>.yaml
-# metadata.name is fixed (shared-config): the namespace keeps environments and projects apart.
+# metadata.name is fixed (shared-configmap): the namespace keeps environments and projects apart.
 # APP_NAMESPACE-APP_ENV must equal metadata.namespace, the namespace Flux was bootstrapped into.
 # Quote every value: ConfigMap data must be strings. After a change, re-apply and reconcile each app:
 #   flux -n <app-namespace>-<app-env> reconcile kustomization <svc>-sync
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: shared-config
+  name: shared-configmap
   namespace: <app-namespace>-<app-env>
 data:
   # Application / product name (used in the app.kubernetes.io/name label)
   APP_NAME: "<app-name>"
   # Base namespace (all three apps run in <APP_NAMESPACE>-<APP_ENV>)
   APP_NAMESPACE: "<app-namespace>"
-  # Environment, e.g. prod or staging
+  # Environment name, used in the namespace and resource names
   APP_ENV: "<app-env>"
-  # Bare domain, no scheme or subdomain. frontend is served at <APP_DOMAIN>, cms-admin at
-  # admin.<APP_DOMAIN>, cms-api at api.<APP_DOMAIN>. Set it BEFORE the first Flux apply. Must differ
-  # per environment on a shared cluster (e.g. staging.example.com), or the Ingress hosts collide.
-  APP_DOMAIN: "<example.com>"
+  # Bare domain, no scheme or subdomain. web is served at <APP_DOMAIN>, admin at
+  # <admin-service>.<APP_DOMAIN>, api at <api-service>.<APP_DOMAIN>. Set it BEFORE the first Flux apply.
+  # Must differ per environment on a shared cluster, or the Ingress hosts collide.
+  APP_DOMAIN: "<domain>"
   # cert-manager ClusterIssuer that issues every app's TLS certificate
   APP_TLS_CLUSTER_ISSUER: "<cluster-issuer-name>"
