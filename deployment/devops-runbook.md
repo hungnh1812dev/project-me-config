@@ -188,6 +188,8 @@ Status: the source, the bump file and the reconcile flow are **verified earlier*
 
 Exactly one replica each (`k3s-traefik.md` §8). Pod security: `runAsNonRoot: true`, `allowPrivilegeEscalation: false`, drop all capabilities. Resource starting points and full manifests: `k3s-traefik.md` §3-§5. `web` gets `API_INTERNAL_URL=http://cms-api.<ns>.svc.cluster.local:3000/api/v1` and `WEB_REVALIDATE_SECONDS=60` as plain `env`. `cms-admin` has no runtime config.
 
+Note: In this repo (`apps/web`), web loads the Secret `web-secrets` through `envFrom`: `API_INTERNAL_URL`, the transition key `APP_API_URL` (kept until the web image reads `API_INTERNAL_URL`) and the other web keys. The plain-`env` description here is the reference design, not what this repo deploys.
+
 Routing (IngressRoutes, `k3s-traefik.md` §1): `<domain>` with `/api` at priority 20 goes to `cms-api:3000`; `<domain>` at priority 10 goes to `web:8080`; `admin.<domain>` goes to `cms-admin:8080`. Never StripPrefix.
 
 ### 4.4 ConfigMaps
