@@ -8,17 +8,36 @@ files.
 
 | Kind | Where it lives | Read by | Holds |
 |---|---|---|---|
-| Shared ConfigMap `shared-config` | the environment's namespace `<ns>`, applied by hand | Flux (`postBuild.substituteFrom`, first) | Values all three apps use: name, namespace, env, domain, TLS issuer |
-| Per-app ConfigMap `<svc>-config` | `<ns>`, applied by hand | Flux (`postBuild.substituteFrom`, second) | Values that differ per app: service name, image repository, port |
+| Shared ConfigMap `shared-configmap` | the environment's namespace `<ns>`, applied by hand | Flux (`postBuild.substituteFrom`, first) | Values all three apps use: name, namespace, env, domain, TLS issuer |
+| Per-app ConfigMap `api-configmap` / `admin-configmap` / `web-configmap` | `<ns>`, applied by hand | Flux (`postBuild.substituteFrom`, second) | Values that differ per app: service name, image repository, port |
 | `postBuild.substitute` in `cluster/me/<env>/<svc>-sync-overlay.yaml` | git, the environment's branch | Flux | `APP_IMAGE_TAG` only |
-| Secret `<svc>-<env>-secrets` | app namespace, applied by hand | the app's pods (`envFrom`) | Runtime config and secrets (cms-api and frontend only) |
+| Secret `api-secrets` | `<ns>`, applied by hand | the cms-api main container (`envFrom`) | cms-api runtime config and secrets |
+| Secret `api-init-secrets` | `<ns>`, applied by hand | the cms-api init container only (`envFrom`) | The init container's whole config; repeats the six shared database settings of `api-secrets` (keep them equal) |
+| Secret `admin-secrets` | `<ns>`, applied by hand | the cms-admin pods (`envFrom`) | cms-admin runtime config |
+| Secret `web-secrets` | `<ns>`, applied by hand | the web pods (`envFrom`) | web runtime config and secrets |
+| Secret `backup-secrets` | `<ns>`, applied by hand | the backup CronJob only (`envFrom`) | Backup job config, including its write-capable bucket token |
+| ConfigMap `database-ca-configmap` | `<ns>`, applied by hand | the pods that mount it, as a file | The database's public CA certificate. Exception: Flux does not read it |
 
-The ConfigMaps are only for Flux: substitution happens before anything reaches the cluster, so
+Placement rule: a value the pod needs at runtime goes in a Secret; a value Flux must substitute
+before the pod exists goes in a ConfigMap.
+
+The Flux ConfigMaps are only for Flux: substitution happens before anything reaches the cluster, so
 the pods never see them. The Secrets are only for the apps: Flux never reads them.
 
-Templates for all six are in `templates/*.example.yaml`. Copy one to the same name without
-`.example`, fill it in, and apply it with `kubectl apply --server-side -f`. The filled-in copies
-are gitignored.
+Templates are in `templates/*.example.yaml`:
+
+- `shared-configmap.example.yaml`, `api-configmap.example.yaml`, `admin-configmap.example.yaml`,
+  `web-configmap.example.yaml`
+- `api-secrets.example.yaml`, `api-init-secrets.example.yaml`, `admin-secrets.example.yaml`,
+  `web-secrets.example.yaml`, `backup-secrets.example.yaml`
+- `database-ca-configmap.example.yaml`
+
+Copy one to the same name without `.example`, fill it in, and apply it with
+`kubectl apply --server-side -f`. The filled-in copies are gitignored.
+
+`database-ca-configmap` takes effect only once the cms-api Deployment mounts it (follow-up), and
+`DB_SSL_MODE=verify-full` needs that mount. `backup-secrets` is read only by a backup CronJob, which
+is not planned yet.
 
 ## Variables
 
@@ -45,9 +64,9 @@ the later one wins, so an app can override a shared value by adding the key to i
   postBuild:
     substituteFrom:
       - kind: ConfigMap
-        name: shared-config
+        name: shared-configmap
       - kind: ConfigMap
-        name: cms-api-config
+        name: api-configmap
     substitute:                          # from cluster/me/<env>/cms-api-sync-overlay.yaml
       APP_IMAGE_TAG: "81-47e63ce-amd64"
 ```
@@ -67,7 +86,7 @@ fixed: the namespace keeps environments and projects apart.
 - **Use a different `APP_DOMAIN` per environment** on a shared cluster (e.g. `staging.example.com`),
   or the staging and prod Ingresses claim the same hosts.
 - **Use a different `APP_SERVICE_NAME`** per service, e.g. `cms-api`, `cms-admin`, `frontend`.
-  Two services with the same value would render resources with the same name. The frontend Secret
+  Two services with the same value would render resources with the same name. The `web-secrets`
   template's in-cluster cms-api URL assumes cms-api uses `cms-api`.
 - **Set `APP_DOMAIN` before the first apply.** A missing value fails the apply instead of
   exposing a catch-all Ingress. cms-api and cms-admin get the invalid host `api.` / `admin.`, and
@@ -85,18 +104,19 @@ Every name is derived from the variables, so the manifests contain no project va
 | Namespace (all three apps) | `<APP_NAMESPACE>-<APP_ENV>` |
 | Deployment, Service, Ingress | `<APP_SERVICE_NAME>-<APP_ENV>`, e.g. `cms-api-prod` |
 | Label `app.kubernetes.io/name` (selectors) | `<APP_NAME>-<APP_SERVICE_NAME>-<APP_ENV>` |
-| Runtime Secret (cms-api, frontend) | `<APP_SERVICE_NAME>-<APP_ENV>-secrets` |
+| Runtime Secrets | `api-secrets`, `api-init-secrets`, `admin-secrets`, `web-secrets`, `backup-secrets` (fixed, in `<ns>`) |
 | TLS Secret (created by cert-manager) | `<APP_SERVICE_NAME>-<APP_ENV>-tls` |
 | Traefik Middleware | `<APP_SERVICE_NAME>-<APP_ENV>-https-redirect` |
 | Ingress middleware annotation | `<APP_NAMESPACE>-<APP_ENV>-<APP_SERVICE_NAME>-<APP_ENV>-https-redirect@kubernetescrd` |
 | Flux instance, GitRepository, root Kustomization | `<APP_NAMESPACE>-<APP_ENV>` (set by `flux bootstrap --namespace`) |
-| Shared Flux ConfigMap | `shared-config` (fixed), in `<ns>` |
-| Per-app Flux ConfigMap | `<svc>-config` (fixed), in `<ns>` |
+| Shared Flux ConfigMap | `shared-configmap` (fixed), in `<ns>` |
+| Per-app Flux ConfigMap | `api-configmap`, `admin-configmap`, `web-configmap` (fixed), in `<ns>` |
+| Database CA ConfigMap | `database-ca-configmap` (fixed), in `<ns>` |
 | Flux Kustomization | `<svc>-sync` (fixed), in `<ns>` |
 
 
-The Secret templates don't go through Flux, so their `metadata.name` (`<svc>-<env>-secrets`) and
-`namespace` have to be written out by hand to match this scheme.
+The Secret templates don't go through Flux, so their `namespace` has to be written out by hand to
+match this scheme; their `metadata.name` is fixed.
 
 Changing `APP_NAME` or `APP_SERVICE_NAME` on a live cluster renames the app resources: Flux prunes
 the old ones and creates new ones, but the hand-made Secrets have to be recreated under the new names
@@ -110,8 +130,8 @@ instance ([DEPLOYMENT.md](../DEPLOYMENT.md), steps 15 and 5).
 | Namespace | `<ns>` | `<ns>` |
 | Contains | Non-secret project info (`APP_*`), shared + per-app | App settings and credentials (DB password, JWT keys, `AUTH_SECRET`, ...) |
 | Consumer | Flux, at render time | The pods, at start |
-| Services | all three | cms-api, frontend (cms-admin has its API URL built into the image) |
-| After a change | re-apply, then `flux -n <ns> reconcile kustomization <svc>-sync` (for the shared ConfigMap: all three) | re-apply, then `kubectl -n <ns> rollout restart deploy/<svc>-<env>` |
+| Services | all three | cms-api, cms-admin, frontend, backup job |
+| After a change | re-apply, then `flux -n <ns> reconcile kustomization <svc>-sync` (for the shared ConfigMap: all three) | re-apply, then `kubectl -n <ns> rollout restart deploy/<svc>-<env>` (the backup job picks it up on its next run) |
 
 A ConfigMap change only takes effect after Flux re-renders, on the next interval or a manual
 reconcile. A Secret change only takes effect when the pods restart, because `envFrom` is read once
