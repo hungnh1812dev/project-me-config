@@ -74,7 +74,7 @@ up() {
 down() {
   containers="$(labelled_containers)"
   # shellcheck disable=SC2086 -- ids never contain spaces
-  [ -z "$containers" ] || docker rm -f $containers >/dev/null
+  [ -z "$containers" ] || docker rm -f -v $containers >/dev/null
   volumes="$(labelled_volumes)"
   # shellcheck disable=SC2086
   [ -z "$volumes" ] || docker volume rm $volumes >/dev/null
