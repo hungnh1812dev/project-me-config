@@ -3,3 +3,6 @@ templates/*.yaml
 !templates/*.example.yaml
 
 .DS_Store
+
+# Agent state (board, handoff, notes): kept local, not in the public repo.
+.claude/state/
