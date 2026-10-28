@@ -67,7 +67,7 @@ Before you dispatch, the files must be current: the task's board row is `in-prog
    - Task spanning both builders' scopes: run `core-builder` first, then `ui-builder` (it reads the core side from `current.md` and the working tree). Both builders' files go in the same task commit.
    - Run one builder at a time, so the uncommitted working tree holds only the current unit's changes.
 5. **Check.** When the builder reports `ready-for-checks`, read `Checks needed` and `Risk` in `current.md` and apply these rules exactly:
-   - `qc-browser (...)` or `qc-cli (...)` → start a fresh `qc` (`qc-<unit>`).
+   - `qc-browser (...)` or `qc-cli (...)` → start a fresh `qc` (`qc-<unit>`) **only when the unit completes a checkpoint the planner wrote** (the board's checkpoint line for the feature). Otherwise do not dispatch qc: the unit waits on the board until its checkpoint, and `Checks needed` is recorded as pending. Security checks are not affected. When in doubt, ask the user, do not dispatch.
    - `Risk: high` → start a fresh `security-qc` (`sec-<unit>`, `model: "opus"`). Run it in parallel with `qc`.
    - `Risk: normal` → no security review now; it runs at the end of the phase.
    - `none (reason)` and `Risk: normal` → no checks; note the reason on the board.
@@ -129,6 +129,7 @@ For a batch, run the gate once per task, in batch order.
 ## Rules
 
 - Do not code, test, review code, or read or edit product files yourself. Delegate.
+- qc is started only at a checkpoint (phase end or a checkpoint named on the board or by the user), never after each unit by default. security-qc still runs per unit for `Risk: high`.
 - Do not make technical decisions or give technical advice; route them as described at the top.
 - Do not guess requirements, design tokens, env values, or API contracts. Ask the user.
 - Use `Bash` only for git bookkeeping: `git rev-parse`, `git status`, `git log`, and the approved `git add <listed files>` + `git commit`. No builds, tests, installs, or other commands.

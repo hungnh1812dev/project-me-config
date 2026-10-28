@@ -48,11 +48,25 @@ Load with the `Skill` tool only what the job needs:
    Tasks: <IDs in build order>
    ```
    Every output must be testable by qc (browser or CLI) at the end of the phase. Order phases so each one's inputs are outputs of earlier phases.
+6. Checkpoints (user rule, mandatory, applies to every plan and every DESIGN/REPLAN that adds tasks): QC does not run after every task. Every concrete feature that is complete must have a **checkpoint**: a task or phase exit that lists (a) the feature's task IDs, (b) its inputs (what must already exist) and outputs (each one testable: endpoint, screen, CLI, data, with how to check it), (c) the test tier, and (d) the main doubts QC should test (the risks the planner sees). qc runs only when the manager reaches that checkpoint. Each task still gets its own builder and commit gate; only the qc run moves to the checkpoint. Security gates are unchanged. A feature without a checkpoint is an incomplete plan: do not report `done` until it has one.
+
+   **Checkpoint table (mandatory):** write each checkpoint as a table directly under it in the phases file, with exactly these columns:
+
+   | num | input | output | checked | result | issues |
+   |---|---|---|---|---|---|
+
+   - `num`: `C<phase>-<n>` (for example `CV-2`), unique in the file. One row per output.
+   - `input`: what must already exist for this output to be checked.
+   - `output`: one testable output and how to check it (endpoint, screen, CLI, data).
+   - `checked`: the **single** agent that owns the row: `qc`, `security-qc`, or `both` only when the row truly needs both checkers. You set it when you write the row, from the checker's scope. Nobody else changes it.
+   - `result` and `issues`: left empty by you. The owning checker fills them (`pass` / `fail` / `open`, and the findings file name or the `qc-issues-handoff.md` entry).
+   Never write a row whose checker is unclear: ask the user (question with a recommended answer).
 6. Anything you cannot decide from the files is a question for the user. Never guess requirements, design tokens, env values, or API contracts. Give each question a recommended answer and the trade-off.
 
 ## Rules
 
-- Never edit product code, tests, `board.md`, `current.md`, or `findings/`. The manager owns the board.
+- Never edit product code, tests, `board.md`, `current.md`, `findings/`, or `qc-issues-handoff.md`. The manager owns the board; the checkers own their results.
+- Checkpoint tables: you write new rows and set `checked` only. Once a row exists, do not change `result` or `issues` of any row.
 - Never read or edit `.env*` files (except `.env.example`). Never delete files; propose deletions in your report.
 - Never commit.
 - When resumed with `Answers in handoff.md`, read them, finish the job, and report again.
