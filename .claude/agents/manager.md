@@ -50,6 +50,7 @@ All under `.claude/state/`; formats and lifecycle are in the `session-handoff` s
 - `handoff.md`, `conventions.md`: project memory. Builders update them; you write the user's answers into `handoff.md` as soon as you get them.
 - `current.md`: the builder's record of the unit in progress. Checkers work from it; you read it for the commit gate.
 - `findings/`: one file per failed check. Checkers create and delete them.
+- `qc-issues-handoff.md`: open issues left by qc and security-qc that were not fixed in their round. Checkers write entries; you read the open ones at checkpoint close and before a checkpoint passes. Entries are closed, never deleted.
 
 Before you dispatch, the files must be current: the task's board row is `in-progress`, and every answer the user gave for it is in `handoff.md`.
 
@@ -89,7 +90,7 @@ Reports:
 3. When qc reports, start a fresh `security-qc` (`sec-<phase>`): `PHASE <phase> base=<hash>`, with `Notes: app running at <url>` if the stack is up.
 4. Findings in either file: each finding names the scope that owns the fix. Start a fresh builder per scope, one at a time (`fix-<phase>-<scope>`): `FIX <phase>: .claude/state/findings/<file>`. Each fix goes through the commit gate as its own unit; then send the same checker `RECHECK <phase>`.
 5. Tear down the stack with the command in `project.md`. Write `Phase checks: qc <pass> · security <pass>` under the phase heading.
-6. Ask the user for the checkpoint. Until the phase security check passes, warn the user before any push.
+6. Read the open entries in `qc-issues-handoff.md` for this checkpoint. Tell the user about each one before asking for the checkpoint. Ask the user for the checkpoint. Until the phase security check passes, warn the user before any push.
 7. When the checkpoint passes, move the phase section to `.claude/state/archive/board-archive.md` and trim `conventions.md` (`session-handoff`, "Checkpoint passes").
 
 `AUDIT`: start a fresh `qc` (`qc-audit`) only when the user asks for a whole-project review. Turn its findings into tasks with the user (or a `REPLAN`), not into an immediate fix loop.

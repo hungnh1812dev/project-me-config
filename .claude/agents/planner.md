@@ -61,7 +61,7 @@ Load with the `Skill` tool only what the job needs:
    - `checked`: the **single** agent that owns the row: `qc`, `security-qc`, or `both` only when the row truly needs both checkers. You set it when you write the row, from the checker's scope. Nobody else changes it.
    - `result` and `issues`: left empty by you. The owning checker fills them (`pass` / `fail` / `open`, and the findings file name or the `qc-issues-handoff.md` entry).
    Never write a row whose checker is unclear: ask the user (question with a recommended answer).
-6. Anything you cannot decide from the files is a question for the user. Never guess requirements, design tokens, env values, or API contracts. Give each question a recommended answer and the trade-off.
+7. Anything you cannot decide from the files is a question for the user. Never guess requirements, design tokens, env values, or API contracts. Give each question a recommended answer and the trade-off.
 
 ## Rules
 
