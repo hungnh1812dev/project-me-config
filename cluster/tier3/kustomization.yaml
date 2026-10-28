@@ -1,0 +1,22 @@
+# Root of the tier 3 stack (ADR-0003 section 2), the counterpart of cluster/me/staging/kustomization.yaml.
+# Applied by the Kustomization project-me-tier3 that `cluster.sh sync` creates; it applies exactly the
+# manifests staging applies, plus the in-cluster Postgres. ca-issuer.yaml and registry.yaml are applied by
+# cluster.sh up, because they must exist before this root does.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: project-me-tier3
+resources:
+  - ../../cluster-base
+  - postgres.yaml
+patches:
+  # The artifact comes from the in-cluster registry (OCIRepository project-me-tier3), not from GitHub.
+  - target:
+      group: kustomize.toolkit.fluxcd.io
+      kind: Kustomization
+      name: .*-sync
+    patch: |-
+      - op: replace
+        path: /spec/sourceRef
+        value:
+          kind: OCIRepository
+          name: project-me-tier3
