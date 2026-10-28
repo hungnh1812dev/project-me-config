@@ -6,3 +6,5 @@ templates/*.yaml
 
 # Agent state (board, handoff, notes): kept local, not in the public repo.
 .claude/state/
+# Agent-local env for the tier 3 stack: dev-only values, never committed.
+.localEnv.agent
