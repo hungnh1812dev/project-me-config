@@ -16,6 +16,7 @@ CA_CLUSTER_ISSUER="tier3-ca"
 STACK_DIR="/repo/tier3-stack"
 REGISTRY_MANIFEST="$STACK_DIR/registry.yaml"
 CA_ISSUER_MANIFEST="/repo/cluster/tier3/ca-issuer.yaml"
+SEED_SCRIPT="$STACK_DIR/seed.sh"
 API_WAIT_SECONDS=120
 ROLLOUT_TIMEOUT="180s"
 READY_TIMEOUT="120s"
@@ -87,6 +88,7 @@ up() {
   install_flux
   install_registry
   install_cert_manager_and_ca
+  "$SEED_SCRIPT"
 }
 
 status() {
