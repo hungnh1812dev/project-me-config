@@ -9,8 +9,8 @@
 # metadata.name is fixed (admin-configmap); metadata.namespace is the environment's namespace, the same
 # one as the shared ConfigMap.
 # Derived names: namespace <APP_NAMESPACE>-<APP_ENV>, resources <APP_SERVICE_NAME>-<APP_ENV>.
-# No APP_PORT: the Deployment uses containerPort 8080, the fixed port of the nginx-unprivileged
-# image (deployment/k3s-traefik.md section 5; apps/cms-admin/deployment.yaml).
+# No APP_PORT: the port is fixed at 8080 until the cms-admin image supports ADMIN_PORT (then
+# APP_PORT is added, see follow-up DC-T6; apps/cms-admin/deployment.yaml).
 # The cms-api URL is NOT here: it's baked into the image at build time as a build arg.
 # Runtime values go in the Secret (templates/admin-secrets.example.yaml).
 # Quote every value: ConfigMap data must be strings. After a change, re-apply and run

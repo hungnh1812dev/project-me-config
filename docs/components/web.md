@@ -1,7 +1,7 @@
 # web
 
-The public website: a Next.js standalone server with Auth.js. It renders pages from cms-api
-content, which it fetches over GraphQL from its server.
+The public website: a Next.js standalone server. It renders pages from cms-api
+content, which it fetches from its server.
 
 - **Base:** `apps/web/`
 - **Flux Kustomization:** `web-sync` in the environment's namespace (`cluster-base/web-sync.yaml`,
@@ -26,13 +26,15 @@ Names below use `<name>` for `<APP_SERVICE_NAME>-<APP_ENV>` (see
 
 | | Value |
 |---|---|
-| Host | `<APP_DOMAIN>` (the bare domain), all paths |
+| Host | `<APP_DOMAIN>` (the bare domain), all paths except `/api/v1`, which cms-api's Ingress serves ([ADR-0002](../adr/0002-api-route-on-web-domain.md)) |
 | TLS | `<name>-tls`, issued by cert-manager from `APP_TLS_CLUSTER_ISSUER` |
 | HTTP | permanently redirected to HTTPS by the Middleware |
-| Port | `APP_PORT` (3000) for the container (named `http`) and the Service |
+| Port | `APP_PORT` (1024 or higher) for the container (named `http`) and the Service |
 
-The image sets `PORT=3000` and Next listens there. `APP_PORT` only tells Kubernetes that port, so it
-must equal the image's `PORT`. The Ingress host uses `${APP_DOMAIN:=APP_DOMAIN-is-not-set}`. A
+The container command is `sh -c "PORT=${APP_PORT} exec node apps/web/server.js"`. The image CMD
+copies `WEB_PORT` into `PORT`; setting `PORT` in the command makes `APP_PORT` the listen port. The
+command must stay in sync with the image CMD. The recommended `APP_PORT` is the image's listen port
+in the image table of [k3s-traefik.md](../../deployment/k3s-traefik.md). The Ingress host uses `${APP_DOMAIN:=APP_DOMAIN-is-not-set}`. A
 bare `${APP_DOMAIN}` that was left empty would drop the host and match every request. The
 placeholder isn't a valid hostname, so the apply fails instead.
 
@@ -40,16 +42,14 @@ placeholder isn't a valid hostname, so the apply fails instead.
 
 | Probe | Check | Initial delay | Period | Timeout |
 |---|---|---|---|---|
-| Readiness | `GET /api/health/ready` on `http` | — | 10s | 8s |
-| Liveness | `GET /api/health/live` on `http` | 10s | 20s | 1s (default) |
+| Readiness | `GET /` on `http` | — | 10s | 8s |
+| Liveness | `GET /` on `http` | 10s | 20s | 1s (default) |
 
-These are chosen so that problems with cms-api don't take web down:
+`/` renders the home page on the server, which fetches content from cms-api:
 
-- `/api/health/ready` always returns 200 and reports cms-api's status in the body, so readiness
-  only checks that the Next server answers.
-- The route stops waiting for cms-api after 5s. The 8s probe timeout is longer, so a hanging cms-api
-  doesn't mark the pod unready.
-- `/api/health/live` never calls cms-api, so a slow cms-api never gets web restarted.
+- The 8s readiness timeout covers a slow cms-api call during the render. A pod whose API is down
+  may report not ready, and `kubectl rollout status` then waits on the API too.
+- Liveness uses the same path with a 1s default timeout and a 20s period.
 
 ## Resources (CPU / memory)
 
@@ -65,35 +65,36 @@ and `APP_TLS_CLUSTER_ISSUER`. web's own holds `APP_SERVICE_NAME`, `APP_IMAGE_REP
 
 | Env | Value | Why |
 |---|---|---|
-| `AUTH_TRUST_HOST` | `"true"` | Auth.js v5 behind a proxy (Traefik) has to trust the forwarded host |
 | `HOSTNAME` | `"0.0.0.0"` | Next binds to `$HOSTNAME`, and the runtime sets it to the pod name |
 
 **Secret (via `envFrom`):**
 
 | Key | Required | Notes |
 |---|---|---|
-| `AUTH_SECRET` | yes | Auth.js session secret; the server throws without it |
-| `CMS_API_URL` | yes | cms-api base for login/refresh/logout |
-| `GRAPHQL_URL` | yes | `<cms-api-url>/graphql` |
-| `REVALIDATE_SECRET` | yes | Shared with cms-api, which calls `/api/revalidate` to purge cached pages |
-| `NEXT_ENV` | | `production` turns off dev-only request logging |
-| `GRAPHQL_TOKEN`, `STRAPI_API_TOKEN` | | Optional bearer tokens for GraphQL |
+| `API_INTERNAL_URL` | yes | cms-api base URL for server-side calls, never sent to the browser |
+| `WEB_REVALIDATE_SECONDS` | yes | Seconds the data cache keeps server-side fetches (0 disables the cache) |
+| `WEB_STATUS_PAGE_ENABLED` | no | `true` shows `/status`; unset or `false` answers 404 |
 
-Don't set `PORT` or `AUTH_TRUST_HOST` in the Secret. For the cms-api URLs, prefer the in-cluster
-Service over the public host, so requests don't go out through Traefik and back:
-`http://cms-api-<APP_ENV>.<APP_NAMESPACE>-<APP_ENV>.svc.cluster.local:<cms-api APP_PORT>`.
+No other key is read. Don't set `PORT` or `WEB_PORT` in the Secret: the Deployment sets `PORT` from
+`APP_PORT`. `API_INTERNAL_URL` uses the in-cluster Service, so requests don't go out through
+Traefik and back:
+`http://cms-api-<APP_ENV>.<APP_NAMESPACE>-<APP_ENV>.svc.cluster.local:<cms-api APP_PORT>/api/v1`.
+If cms-api's `APP_PORT` changes, update `API_INTERNAL_URL` here too.
 
-The public GraphQL URL used by the health check is built into the image (`FRONTEND_GRAPHQL_URL` in
-the app repository), not set here. `FRONTEND_GRAPHQL_URL` (web build variable) is defined by the
-app repository and keeps its name.
+The browser calls cms-api on its own origin, at `/api/v1` (routed by cms-api's Ingress, see
+[ADR-0002](../adr/0002-api-route-on-web-domain.md)). The base is a build variable of the image,
+`NEXT_PUBLIC_API_BASE_URL`, set by the app team. Changing it needs a rebuild.
+
+The same template serves staging and prod. After a trim, re-apply it with `--server-side` and check
+that the Secret holds only these keys:
+`kubectl -n <ns> get secret web-secrets -o json | jq -r '.data | keys[]'`. A Secret first made with a
+plain `kubectl apply` or `create` keeps the dropped keys, and you remove them yourself.
 
 ## Security
 
 - `automountServiceAccountToken: false`.
-- Pod `seccompProfile: RuntimeDefault`.
+- Pod `seccompProfile: RuntimeDefault` and `runAsNonRoot: true`.
 - Container: `allowPrivilegeEscalation: false`, `capabilities.drop: [ALL]`.
-- No `runAsNonRoot` yet, because the image's `USER` is set in the app repository
-  ([AUDIT.md](../AUDIT.md), finding 4).
 
 ## Dependencies
 
@@ -133,7 +134,7 @@ steps for all apps are in [DEPLOYMENT.md](../DEPLOYMENT.md#moving-to-the-new-con
    tag the old `frontend-sync-overlay.yaml` had, and that no `frontend-sync-overlay.yaml` is left.
 3. Check: `flux -n <ns> get kustomizations` shows `web-sync` Ready and no `frontend-sync`;
    `kubectl -n <ns> rollout status deploy/web-<env>`; the certificate `web-<env>-tls` is Ready;
-   `curl -I https://<domain>/api/health/ready` returns 200.
+   `curl -fsSI https://<domain>/` returns 200.
 4. Only then delete the old objects yourself: ConfigMap `frontend-config`, Secrets
    `frontend-secrets` and `frontend-<env>-tls`.
 

@@ -47,8 +47,9 @@ Templates are in `templates/*.example.yaml`:
 Copy one to the same name without `.example`, fill it in, and apply it with
 `kubectl apply --server-side -f`. The filled-in copies are gitignored.
 
-Both cms-api containers mount `database-ca-configmap` at `/etc/abyss/database-ca`, and
-`DB_SSL_MODE=verify-full` needs that mount. `backup-secrets` is read only by a backup CronJob, which
+Both cms-api containers mount `database-ca-configmap` at `/etc/project-me/database-ca`, and
+`DB_SSL_MODE=verify-full` needs that mount. The files in `deployment/` show `/etc/abyss/database-ca`;
+this repo uses `/etc/project-me/database-ca`. `backup-secrets` is read only by a backup CronJob, which
 is not planned yet.
 
 ## Variables
@@ -58,16 +59,23 @@ is not planned yet.
 | `APP_NAME` | shared ConfigMap | ✓ | ✓ | ✓ | The `app.kubernetes.io/name` label |
 | `APP_NAMESPACE` | shared ConfigMap | ✓ | ✓ | ✓ | Namespace base (the apps run in `<APP_NAMESPACE>-<APP_ENV>`) |
 | `APP_ENV` | shared ConfigMap | ✓ | ✓ | ✓ | Environment suffix on names and the namespace, e.g. `prod` |
-| `APP_DOMAIN` | shared ConfigMap | ✓ | ✓ | ✓ | Bare domain. Hosts: `api.<domain>`, `admin.<domain>`, `<domain>` |
+| `APP_DOMAIN` | shared ConfigMap | ✓ | ✓ | ✓ | Bare domain. Hosts: `<domain>` (web, and `/api/v1` to cms-api), `admin.<domain>`, `api.<domain>` |
 | `APP_TLS_CLUSTER_ISSUER` | shared ConfigMap | ✓ | ✓ | ✓ | cert-manager ClusterIssuer on each Ingress |
 | `APP_SERVICE_NAME` | per-app ConfigMap | ✓ | ✓ | ✓ | First part of every resource name. Must differ per service |
 | `APP_IMAGE_REPO` | per-app ConfigMap | ✓ | ✓ | ✓ | Image repository without a tag |
-| `APP_PORT` | per-app ConfigMap | ✓ | — | ✓ | Container and Service port (cms-api also gets it as `PORT`) |
-| `APP_IMAGE_TAG` | sync file | ✓ | ✓ | ✓ | Image tag (cms-api's init image uses `<tag>-init`) |
+| `APP_PORT` | per-app ConfigMap | ✓ | — | ✓ | Listen port: container, Service, and `PORT` in the app (1024 or higher) |
+| `APP_IMAGE_TAG` | sync file | ✓ | ✓ | ✓ | Image tag (cms-api's init container uses the same image and tag) |
 
-cms-admin listens on 80, fixed by its nginx image, so it has no `APP_PORT`. The web image sets
-`PORT=3000` itself, so its `APP_PORT` must be `"3000"`: it tells Kubernetes the port, it doesn't
-change it.
+cms-admin listens on 8080, fixed by its `nginx-unprivileged` image, so it has no `APP_PORT` yet.
+
+**Port model.** Each of cms-api and web has its own `APP_PORT` in its own ConfigMap, with no shared
+port key. The Deployment sets the listen port in the container `command` (`PORT=${APP_PORT}`), not
+in `env`, because a substituted `value: "${APP_PORT}"` reaches the API server as a number and is
+rejected. `containerPort` is `${APP_PORT}` and named `http`; probes and the Service `targetPort`
+use `http`, never a number. `APP_PORT` must be 1024 or higher (non-root, no capabilities).
+The recommended values are the image ports in the image table of
+[k3s-traefik.md](../../deployment/k3s-traefik.md). If you change cms-api's `APP_PORT`, update
+`API_INTERNAL_URL` in `web-secrets` too.
 
 Each sync file lists the shared ConfigMap first and the per-app one second. When a key is in both,
 the later one wins, so an app can override a shared value by adding the key to its own ConfigMap:
@@ -92,7 +100,7 @@ fixed: the namespace keeps environments and projects apart.
 
 ### Rules
 
-- **Quote every value** in the ConfigMaps (`APP_PORT: "3000"`). ConfigMap data must be strings.
+- **Quote every value** in the ConfigMaps (`APP_PORT: "<port>"`). ConfigMap data must be strings.
 - **`APP_NAMESPACE`-`APP_ENV` must equal the Flux namespace.** Flux, its ConfigMaps and all three
   apps share one namespace per environment. Set both only in the shared ConfigMap, never per app.
 - **Use a different `APP_DOMAIN` per environment** on a shared cluster (e.g. `staging.example.com`),
@@ -140,7 +148,7 @@ instance ([DEPLOYMENT.md](../DEPLOYMENT.md), steps 15 and 5).
 | | ConfigMap | Secret |
 |---|---|---|
 | Namespace | `<ns>` | `<ns>` |
-| Contains | Non-secret project info (`APP_*`), shared + per-app | App settings and credentials (DB password, JWT keys, `AUTH_SECRET`, ...) |
+| Contains | Non-secret project info (`APP_*`), shared + per-app | App settings and credentials (DB password, JWT keys, ...) |
 | Consumer | Flux, at render time | The pods, at start |
 | Services | all three | cms-api, cms-admin, web, backup job |
 | After a change | re-apply, then `flux -n <ns> reconcile kustomization <svc>-sync` (for the shared ConfigMap: all three) | re-apply, then `kubectl -n <ns> rollout restart deploy/<svc>-<env>` (the backup job picks it up on its next run) |
@@ -162,8 +170,8 @@ environment's branch. Flux applies it on its next poll. The contract:
 - **Exactly one line per file starts with `APP_IMAGE_TAG:`** (after indentation). The pipeline
   rewrites it by pattern, so a second such line would be rewritten too. Mentions inside
   comments don't match, because they don't start the line.
-- **cms-api:** the pipeline must push both `<repo>:<tag>` and `<repo>:<tag>-init` before
-  committing, or the init container fails with `ImagePullBackOff`.
+- **cms-api:** one image and one tag serve both the init and the app container; the pipeline
+  pushes `<repo>:<tag>` before committing.
 - **Never reuse a tag.** Tags like `81-47e63ce-amd64` include the commit SHA, so each one is unique.
 
 An example rewrite (GNU sed, as on Linux CI runners; on macOS use `sed -i ''`):

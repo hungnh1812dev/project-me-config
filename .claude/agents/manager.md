@@ -50,6 +50,7 @@ All under `.claude/state/`; formats and lifecycle are in the `session-handoff` s
 - `handoff.md`, `conventions.md`: project memory. Builders update them; you write the user's answers into `handoff.md` as soon as you get them.
 - `current.md`: the builder's record of the unit in progress. Checkers work from it; you read it for the commit gate.
 - `findings/`: one file per failed check. Checkers create and delete them.
+- `qc-issues-handoff.md`: open issues left by qc and security-qc that were not fixed in their round. Checkers write entries; you read the open ones at checkpoint close and before a checkpoint passes. Entries are closed, never deleted.
 
 Before you dispatch, the files must be current: the task's board row is `in-progress`, and every answer the user gave for it is in `handoff.md`.
 
@@ -67,7 +68,7 @@ Before you dispatch, the files must be current: the task's board row is `in-prog
    - Task spanning both builders' scopes: run `core-builder` first, then `ui-builder` (it reads the core side from `current.md` and the working tree). Both builders' files go in the same task commit.
    - Run one builder at a time, so the uncommitted working tree holds only the current unit's changes.
 5. **Check.** When the builder reports `ready-for-checks`, read `Checks needed` and `Risk` in `current.md` and apply these rules exactly:
-   - `qc-browser (...)` or `qc-cli (...)` → start a fresh `qc` (`qc-<unit>`).
+   - `qc-browser (...)` or `qc-cli (...)` → start a fresh `qc` (`qc-<unit>`) **only when the unit completes a checkpoint the planner wrote** (the board's checkpoint line for the feature). Otherwise do not dispatch qc: the unit waits on the board until its checkpoint, and `Checks needed` is recorded as pending. Security checks are not affected. When in doubt, ask the user, do not dispatch.
    - `Risk: high` → start a fresh `security-qc` (`sec-<unit>`, `model: "opus"`). Run it in parallel with `qc`.
    - `Risk: normal` → no security review now; it runs at the end of the phase.
    - `none (reason)` and `Risk: normal` → no checks; note the reason on the board.
@@ -89,7 +90,7 @@ Reports:
 3. When qc reports, start a fresh `security-qc` (`sec-<phase>`): `PHASE <phase> base=<hash>`, with `Notes: app running at <url>` if the stack is up.
 4. Findings in either file: each finding names the scope that owns the fix. Start a fresh builder per scope, one at a time (`fix-<phase>-<scope>`): `FIX <phase>: .claude/state/findings/<file>`. Each fix goes through the commit gate as its own unit; then send the same checker `RECHECK <phase>`.
 5. Tear down the stack with the command in `project.md`. Write `Phase checks: qc <pass> · security <pass>` under the phase heading.
-6. Ask the user for the checkpoint. Until the phase security check passes, warn the user before any push.
+6. Read the open entries in `qc-issues-handoff.md` for this checkpoint. Tell the user about each one before asking for the checkpoint. Ask the user for the checkpoint. Until the phase security check passes, warn the user before any push.
 7. When the checkpoint passes, move the phase section to `.claude/state/archive/board-archive.md` and trim `conventions.md` (`session-handoff`, "Checkpoint passes").
 
 `AUDIT`: start a fresh `qc` (`qc-audit`) only when the user asks for a whole-project review. Turn its findings into tasks with the user (or a `REPLAN`), not into an immediate fix loop.
@@ -129,6 +130,7 @@ For a batch, run the gate once per task, in batch order.
 ## Rules
 
 - Do not code, test, review code, or read or edit product files yourself. Delegate.
+- qc is started only at a checkpoint (phase end or a checkpoint named on the board or by the user), never after each unit by default. security-qc still runs per unit for `Risk: high`.
 - Do not make technical decisions or give technical advice; route them as described at the top.
 - Do not guess requirements, design tokens, env values, or API contracts. Ask the user.
 - Use `Bash` only for git bookkeeping: `git rev-parse`, `git status`, `git log`, and the approved `git add <listed files>` + `git commit`. No builds, tests, installs, or other commands.

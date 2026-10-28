@@ -277,7 +277,7 @@ Next.js standalone server run by Node as uid 1000. It is not behind nginx; its s
 
 The build args are GitHub Environment variables (`docs/ci-cd.md`, "What you must create in GitHub"); changing one means a new image, not a new rollout of the old one. The runtime variables are read by the Node server at start, so changing them needs a pod restart. `API_INTERNAL_URL` is server-only: it never reaches the browser, and the server calls cms-api anonymously.
 
-Note: In this repo (`apps/web`), web loads the Secret `web-secrets` through `envFrom`: `API_INTERNAL_URL`, the transition key `APP_API_URL` (kept until the web image reads `API_INTERNAL_URL`) and the other web keys. The plain-`env` description here is the reference design, not what this repo deploys.
+Note: In this repo (`apps/web`), web loads the Secret `web-secrets` through `envFrom`: `API_INTERNAL_URL` and `WEB_REVALIDATE_SECONDS`. The plain-`env` description here is the reference design, not what this repo deploys.
 
 ```yaml
 containers:
@@ -310,7 +310,7 @@ The probe on `/` renders the home page on the server, which fetches content from
 
 ## 5. cms-admin
 
-Static files on `nginx-unprivileged` (uid 101, port 8080). `VITE_API_BASE_URL` is a **build arg**: the full API base, for example `https://domain.com/api/v1`. The CSP `connect-src` is derived from it at container start; `CSP_CONNECT_SRC` (space-separated origins) overrides it at run time if the API origin ever differs. No other runtime configuration. Probe `GET /` on 8080.
+Static files on `nginx-unprivileged` (uid 101, port 8080). `VITE_API_BASE_URL` is a **build arg**: the full API base, for example `https://api.<domain>/api/v1`. The CSP `connect-src` is derived from it at container start; `CSP_CONNECT_SRC` (space-separated origins) overrides it at run time if the API origin ever differs. No other runtime configuration. Probe `GET /` on 8080.
 
 ```yaml
 containers:

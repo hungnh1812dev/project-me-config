@@ -21,7 +21,10 @@ metadata:
 data:
   # Service within the application (resources are named <APP_SERVICE_NAME>-<APP_ENV>)
   APP_SERVICE_NAME: "<app-service-name>"
-  # Image repository without a tag (app image <repo>:<tag>, init image <repo>:<tag>-init)
+  # Image repository without a tag (one image <repo>:<tag> for the app and the init container)
   APP_IMAGE_REPO: "<registry/owner/repo/image>"
-  # Container + Service port; the Deployment also sets it as the app's PORT
+  # Listen port: the Deployment sets it as the app's PORT, and it is the containerPort and the
+  # Service port. Must be 1024 or higher (non-root). Recommended value: the cms-api listen port in
+  # the image table of deployment/k3s-traefik.md. If it changes, update API_INTERNAL_URL in
+  # web-secrets too.
   APP_PORT: "<port>"
