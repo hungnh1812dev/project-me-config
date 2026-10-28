@@ -19,5 +19,5 @@ patches:
         value: project-me-prod
   # Image tags, one file per app.
   - path: cms-api-sync-overlay.yaml
-  - path: cms-admin-sync-overlay.yaml
-  - path: web-sync-overlay.yaml
+  # - path: cms-admin-sync-overlay.yaml
+  # - path: web-sync-overlay.yaml
