@@ -37,7 +37,7 @@ spec:
                 port:
                   name: http
     # web's browser calls use /api/v1 on the bare domain. The longer path wins over web's "/" rule.
-    # No StripPrefix: cms-api serves under /api/v1. See docs/adr/0002-api-route-on-web-domain.md.
+    # No path rewrite: cms-api serves under /api/v1. See docs/adr/0002-api-route-on-web-domain.md.
     - host: ${APP_DOMAIN:=APP_DOMAIN-is-not-set}
       http:
         paths:
