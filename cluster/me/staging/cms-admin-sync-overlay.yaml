@@ -7,4 +7,4 @@ metadata:
 spec:
   postBuild:
     substitute:
-      APP_IMAGE_TAG: "staging-681e755"
+      APP_IMAGE_TAG: "staging-0ec389b"
