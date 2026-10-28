@@ -279,6 +279,8 @@ so `containerPort` and `port` rendered empty and the API server would reject the
 **Fix:** `APP_PORT` added to `templates/frontend-configmap.example.yaml`. It must equal the image's
 `PORT` (3000).
 
+Superseded: this describes the old frontend image. The web port now follows `APP_PORT`; recommended value: see [ADR-0001](adr/0001-web-listen-port.md).
+
 ### E6. ConfigMap names disagree — High, Fixed
 
 The sync files read `project-me-<svc>-sync-prod-config`, the templates were named
@@ -302,6 +304,8 @@ said not to set it. **Fix:** removed.
 
 The frontend Service comment said "port 3000", and the Deployment said "PORT=${APP_PORT} is set in
 the image". **Fix:** both now say the image sets `PORT`, and `APP_PORT` must equal it.
+
+Superseded: this describes the old frontend image. The web port now follows `APP_PORT`; recommended value: see [ADR-0001](adr/0001-web-listen-port.md).
 
 ### Verification (config sync)
 
