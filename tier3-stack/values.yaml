@@ -1,0 +1,143 @@
+# Values of the tier 3 stack's Secrets and ConfigMaps (ADR-0003 section 5), keyed by object name, then key.
+# The key set of each object comes from templates/*.example.yaml; seed.sh fails on a missing or extra key.
+# Stated exception to "placeholders only": plain values here are throwaway local values, not real ones.
+#
+# Value forms:
+#   "text"                 a literal throwaway value (quote every value)
+#   generate: <name>       random value made at seed time; the same name gives the same value in every object
+#   local: <KEY>           read from .localEnv.agent (key names: tier3-stack/.env.example)
+#   cluster-ca: <issuer>   ca.crt of the Secret <issuer> in cert-manager (the local CA)
+#   image-tag:             APP_IMAGE_TAG (an extra key beside the template keys, app ConfigMaps only):
+#     overlay: <path>        the APP_IMAGE_TAG line of this staging overlay file, in the commit under test
+#     local: <KEY>           optional override from .localEnv.agent
+# Database login is mode A (deployment/devops-runbook.md section 4.6): one login for migrations and the API.
+# External providers (SMTP, Cloudinary, Turnstile, backup storage) hold placeholder-shaped values (open: app team APP-2).
+
+shared-configmap:
+  APP_NAME: "project-me"
+  APP_NAMESPACE: "project-me"
+  APP_ENV: "tier3"
+  APP_DOMAIN: "project-me.localhost"
+  APP_TLS_CLUSTER_ISSUER: "tier3-ca"
+
+api-configmap:
+  APP_SERVICE_NAME: "cms-api"
+  APP_IMAGE_REPO:
+    local: TIER3_API_IMAGE_REPO
+  APP_PORT: "3000"
+  APP_IMAGE_TAG:
+    image-tag:
+      overlay: cluster/me/staging/cms-api-sync-overlay.yaml
+      local: TIER3_API_IMAGE_TAG
+
+admin-configmap:
+  APP_SERVICE_NAME: "cms-admin"
+  APP_IMAGE_REPO:
+    local: TIER3_ADMIN_IMAGE_REPO
+  APP_IMAGE_TAG:
+    image-tag:
+      overlay: cluster/me/staging/cms-admin-sync-overlay.yaml
+      local: TIER3_ADMIN_IMAGE_TAG
+
+web-configmap:
+  APP_SERVICE_NAME: "web"
+  APP_IMAGE_REPO:
+    local: TIER3_WEB_IMAGE_REPO
+  APP_PORT: "8080"
+  APP_IMAGE_TAG:
+    image-tag:
+      overlay: cluster/me/staging/web-sync-overlay.yaml
+      local: TIER3_WEB_IMAGE_TAG
+
+database-ca-configmap:
+  ca.crt:
+    cluster-ca: tier3-ca
+
+api-secrets:
+  DB_USERNAME: "project_me"
+  DB_PASSWORD:
+    generate: db-password
+  JWT_ACCESS_SECRET:
+    generate: jwt-access-secret
+  OTP_PEPPER:
+    generate: otp-pepper
+  TOTP_ENC_KEY:
+    generate: totp-enc-key
+  CLOUDINARY_API_SECRET:
+    generate: cloudinary-api-secret
+  TURNSTILE_SECRET_KEY:
+    generate: turnstile-secret-key
+  SMTP_USER: "tier3"
+  SMTP_PASSWORD:
+    generate: smtp-password
+  BACKUP_STORAGE_ACCESS_KEY_ID:
+    generate: backup-storage-access-key-id
+  BACKUP_STORAGE_SECRET_ACCESS_KEY:
+    generate: backup-storage-secret-access-key
+  NODE_ENV: "production"
+  DB_HOST: "postgres.project-me-tier3.svc.cluster.local"
+  DB_PORT: "5432"
+  DB_NAME: "project_me"
+  DB_SSL_MODE: "verify-full"
+  DB_SSL_ROOT_CERT_PATH: "/etc/project-me/database-ca/ca.crt"
+  TRUST_PROXY_HOPS: "1"
+  ADMIN_ORIGIN: "https://admin.project-me.localhost"
+  WEB_ORIGIN: "https://project-me.localhost"
+  MAIL_PROVIDER: "smtp"
+  SMTP_HOST: "smtp.placeholder.invalid"
+  SMTP_PORT: "587"
+  SMTP_SECURE: "false"
+  MAIL_FROM: "Project Me <noreply@project-me.localhost>"
+  MEDIA_PROVIDER: "cloudinary"
+  CLOUDINARY_CLOUD_NAME: "tier3-placeholder"
+  CLOUDINARY_API_KEY: "000000000000000"
+  CLOUDINARY_FOLDER: "tier3"
+  TURNSTILE_EXPECTED_HOSTNAME: "project-me.localhost"
+  REVIEWER_FEATURE_ENABLED: "true"
+  JWT_ACCESS_KID: "tier3-1"
+  TOTP_ENC_KID: "tier3-1"
+  TOTP_ISSUER: "project-me-tier3"
+  BACKUP_STORAGE_ENDPOINT: "https://tier3-placeholder.invalid"
+  BACKUP_STORAGE_REGION: "auto"
+  BACKUP_STORAGE_BUCKET: "tier3-placeholder"
+  BACKUP_STORAGE_PREFIX: "postgres/"
+
+api-init-secrets:
+  DB_USERNAME: "project_me"
+  DB_PASSWORD:
+    generate: db-password
+  NODE_ENV: "production"
+  DB_HOST: "postgres.project-me-tier3.svc.cluster.local"
+  DB_PORT: "5432"
+  DB_NAME: "project_me"
+  DB_SSL_MODE: "verify-full"
+  DB_SSL_ROOT_CERT_PATH: "/etc/project-me/database-ca/ca.crt"
+
+admin-secrets: {}
+
+web-secrets:
+  API_INTERNAL_URL: "http://cms-api-tier3.project-me-tier3.svc.cluster.local:3000/api/v1"
+  WEB_REVALIDATE_SECONDS: "60"
+
+backup-secrets:
+  DB_USERNAME: "project_me"
+  DB_PASSWORD:
+    generate: db-password
+  RCLONE_CONFIG_OFFSITE_ACCESS_KEY_ID:
+    generate: backup-write-access-key-id
+  RCLONE_CONFIG_OFFSITE_SECRET_ACCESS_KEY:
+    generate: backup-write-secret-access-key
+  DB_HOST: "postgres.project-me-tier3.svc.cluster.local"
+  DB_PORT: "5432"
+  DB_NAME: "project_me"
+  PGSSLMODE: "verify-full"
+  PGSSLROOTCERT: "/etc/project-me/database-ca/ca.crt"
+  BACKUP_BUCKET: "tier3-placeholder"
+  BACKUP_PREFIX: "postgres/"
+  BACKUP_MAX_DATABASE_BYTES: "400000000"
+  BACKUP_MAX_DUMP_BYTES: "200000000"
+  RCLONE_CONFIG_OFFSITE_TYPE: "s3"
+  RCLONE_CONFIG_OFFSITE_PROVIDER: "Cloudflare"
+  RCLONE_CONFIG_OFFSITE_ENDPOINT: "https://tier3-placeholder.invalid"
+  RCLONE_CONFIG_OFFSITE_NO_CHECK_BUCKET: "true"
+  BACKUP_AGE_RECIPIENT: "age1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq"

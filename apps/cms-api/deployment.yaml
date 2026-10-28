@@ -1,6 +1,8 @@
-# cms-api Deployment: a `prisma migrate deploy` init container, then the app. Both images share
-# ${APP_IMAGE_TAG} (the app tag, and the same tag + `-init`), so they always come from one commit.
-# Runtime config and secrets come from the hand-made <svc>-<env>-secrets Secret via envFrom.
+# cms-api Deployment: an init container that runs `npm run deploy:migrate`, then the app. Both
+# containers use the same image and ${APP_IMAGE_TAG}, so they always come from one commit.
+# Runtime config and secrets come from hand-made Secrets via envFrom: the init container reads only
+# api-init-secrets, the app reads api-secrets (templates: templates/api-init-secrets.example.yaml,
+# templates/api-secrets.example.yaml).
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -20,23 +22,35 @@ spec:
     spec:
       # The app never calls the Kubernetes API, so it gets no service-account token.
       automountServiceAccountToken: false
-      # No runAsNonRoot yet: it depends on the image's USER (set in the app repo's Dockerfile), and
-      # a root image would then fail to start. See docs/AUDIT.md.
+      # The images run as a numeric non-root user, checked by the app repo CI.
       securityContext:
+        runAsNonRoot: true
         seccompProfile:
           type: RuntimeDefault
+      # The Supabase CA for DB_SSL_MODE=verify-full. The mount path must equal the directory of
+      # DB_SSL_ROOT_CERT_PATH in api-secrets and api-init-secrets. Not optional: a missing ConfigMap
+      # keeps the new pod in ContainerCreating while the old pod keeps serving.
+      volumes:
+        - name: database-ca
+          configMap:
+            name: database-ca-configmap
       initContainers:
         - name: init
-          image: ${APP_IMAGE_REPO}:${APP_IMAGE_TAG}-init
+          image: ${APP_IMAGE_REPO}:${APP_IMAGE_TAG}
+          command: ["npm", "run", "--silent", "deploy:migrate"]
           envFrom:
             - secretRef:
-                name: ${APP_SERVICE_NAME}-${APP_ENV}-secrets
+                name: api-init-secrets
+          volumeMounts:
+            - name: database-ca
+              mountPath: /etc/project-me/database-ca
+              readOnly: true
           securityContext:
             allowPrivilegeEscalation: false
             capabilities:
               drop: ["ALL"]
-          # `prisma migrate deploy` is short-lived but loads the Prisma engine, so it gets the app's
-          # memory ceiling.
+          # The migration is short-lived but loads the Prisma engine, so it gets the app's memory
+          # ceiling.
           resources:
             requests:
               cpu: 50m
@@ -54,28 +68,32 @@ spec:
           # PORT is set here (overriding any PORT in the Secret) so the app and the Service can't
           # disagree. Not via `env`: Flux substitutes after kustomize drops the quotes, so
           # `value: "${APP_PORT}"` would reach the API server as an int and be rejected. Keep the
-          # rest in sync with the Dockerfile runner's CMD.
-          command: ["sh", "-c", "PORT=${APP_PORT} exec bun dist/src/main"]
+          # rest in sync with the image CMD.
+          command: ["sh", "-c", "PORT=${APP_PORT} exec node dist/main.js"]
           # Unquoted on purpose: ports must be ints after substitution.
           ports:
             - name: http
               containerPort: ${APP_PORT}
           envFrom:
             - secretRef:
-                name: ${APP_SERVICE_NAME}-secrets
-          # cms-api serves /health/* outside the api/v1 prefix. Liveness only checks the process
+                name: api-secrets
+          volumeMounts:
+            - name: database-ca
+              mountPath: /etc/project-me/database-ca
+              readOnly: true
+          # cms-api serves the health routes under the /api/v1 prefix. Liveness only checks the process
           # answers: a database outage must take the pod out of rotation (readiness), not restart it.
           livenessProbe:
             httpGet:
-              path: /health/live
-              port: ${APP_PORT}
+              path: /api/v1/health/live
+              port: http
             initialDelaySeconds: 15
             periodSeconds: 20
           # /health/ready also checks the database.
           readinessProbe:
             httpGet:
-              path: /health/ready
-              port: ${APP_PORT}
+              path: /api/v1/health/ready
+              port: http
             initialDelaySeconds: 5
             periodSeconds: 10
           resources:

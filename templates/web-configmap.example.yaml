@@ -1,0 +1,30 @@
+# web ConfigMap template: the ${APP_*} values only the web app uses. The values shared by all
+# three apps (name, namespace, env, domain, TLS issuer) are in templates/shared-configmap.example.yaml;
+# cluster-base/web-sync.yaml reads that first and this second (postBuild.substituteFrom), so a key
+# set here overrides the shared one.
+# Placeholders only; never commit real values. Created by hand on the cluster, after the shared
+# ConfigMap and before the web app's first Flux deploy:
+#   cp templates/web-configmap.example.yaml templates/web-configmap.yaml   # gitignored; fill in values
+#   kubectl apply --server-side -f templates/web-configmap.yaml
+# metadata.name is fixed (web-configmap); metadata.namespace is the environment's namespace, the same
+# one as the shared ConfigMap.
+# Derived names: namespace <APP_NAMESPACE>-<APP_ENV>, resources <APP_SERVICE_NAME>-<APP_ENV>.
+# Runtime settings and secrets are NOT here: they go in the Secret (templates/web-secrets.example.yaml).
+# NEXT_PUBLIC_* values are build args of the image (GitHub Environment variables), not ConfigMap keys.
+# Quote every value: ConfigMap data must be strings.
+# After a change, re-apply and reconcile the web Kustomization:
+#   flux -n <APP_NAMESPACE>-<APP_ENV> reconcile kustomization web-sync
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: web-configmap
+  namespace: <app-namespace>-<app-env>
+data:
+  # Service within the application (resources are named <APP_SERVICE_NAME>-<APP_ENV>); value: web
+  APP_SERVICE_NAME: "<app-service-name>"
+  # Image repository without a tag (image <repo>:<tag>)
+  APP_IMAGE_REPO: "<registry/owner/repo/image>"
+  # Listen port: the Deployment sets it as PORT, and it is the containerPort and Service port.
+  # 1024 or higher. Recommended value: the image's listen port in the image table of
+  # deployment/k3s-traefik.md.
+  APP_PORT: "<port>"

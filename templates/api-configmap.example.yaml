@@ -1,0 +1,30 @@
+# api-configmap: the ${APP_*} values only cms-api uses, read by Flux only. The values shared by all
+# three apps (name, namespace, env, domain, TLS issuer) are in templates/shared-configmap.example.yaml;
+# cluster-base/cms-api-sync.yaml reads that first and this second (postBuild.substituteFrom), so a key
+# set here overrides the shared one.
+# Runtime settings are not here: they live in api-secrets (main container) and api-init-secrets
+# (init container).
+# Placeholders only; never commit real values. Created by hand on the cluster, after the shared
+# ConfigMap and before cms-api's first Flux deploy:
+#   cp templates/api-configmap.example.yaml templates/api-configmap.yaml   # gitignored; fill in values
+#   kubectl apply --server-side -f templates/api-configmap.yaml
+# metadata.name is fixed (api-configmap); metadata.namespace is the environment's namespace, the same
+# one as the shared ConfigMap.
+# Derived names: namespace <APP_NAMESPACE>-<APP_ENV>, resources <APP_SERVICE_NAME>-<APP_ENV>.
+# Quote every value: ConfigMap data must be strings. After a change, re-apply and run
+# `flux -n <APP_NAMESPACE>-<APP_ENV> reconcile kustomization cms-api-sync`.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: api-configmap
+  namespace: <app-namespace>-<app-env>
+data:
+  # Service within the application (resources are named <APP_SERVICE_NAME>-<APP_ENV>)
+  APP_SERVICE_NAME: "<app-service-name>"
+  # Image repository without a tag (one image <repo>:<tag> for the app and the init container)
+  APP_IMAGE_REPO: "<registry/owner/repo/image>"
+  # Listen port: the Deployment sets it as the app's PORT, and it is the containerPort and the
+  # Service port. Must be 1024 or higher (non-root). Recommended value: the cms-api listen port in
+  # the image table of deployment/k3s-traefik.md. If it changes, update API_INTERNAL_URL in
+  # web-secrets too.
+  APP_PORT: "<port>"
