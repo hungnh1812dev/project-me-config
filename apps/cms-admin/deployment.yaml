@@ -1,5 +1,6 @@
 # cms-admin Deployment: the static SPA on nginx (apps/cms-admin/Dockerfile). The cms-api URL is baked
-# into the image at build time (VITE_API_URL), so the pod needs no config or Secret at runtime.
+# into the image at build time (VITE_API_URL). Runtime values come from the hand-made admin-secrets
+# Secret via envFrom (template: templates/admin-secrets.example.yaml).
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -36,18 +37,21 @@ spec:
           # nginx listens on 80 (apps/cms-admin/nginx.conf); an image fact, not a project value.
           ports:
             - name: http
-              containerPort: 80
+              containerPort: 8080
+          envFrom:
+            - secretRef:
+                name: admin-secrets
           # /health/live and /health/ready are answered by nginx itself (no file or upstream
           # involved), so neither depends on cms-api.
           livenessProbe:
             httpGet:
-              path: /health/live
+              path: /healthz
               port: http
             initialDelaySeconds: 5
             periodSeconds: 20
           readinessProbe:
             httpGet:
-              path: /health/ready
+              path: /healthz
               port: http
             periodSeconds: 10
           resources:

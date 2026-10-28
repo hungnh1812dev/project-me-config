@@ -1,0 +1,22 @@
+# database-ca-configmap: the public CA certificate of the database server. Flux does not read it; it
+# is mounted as a file. The cms-api Deployment mounts it, read-only, in both the init container and
+# the main container, and the backup job mounts it too, at the path that DB_SSL_ROOT_CERT_PATH
+# (cms-api) and PGSSLROOTCERT (backup) point to.
+# Source: Supabase Dashboard > Database settings > SSL (deployment/supabase-database.md, step S1).
+# The certificate is public, so this is a ConfigMap, not a Secret.
+# The key name ca.crt is fixed; metadata.name is fixed (database-ca-configmap).
+# Created by hand before the first Flux deploy:
+#   cp templates/database-ca-configmap.example.yaml templates/database-ca-configmap.yaml   # gitignored; paste the certificate
+#   kubectl apply -f templates/database-ca-configmap.yaml
+# The namespace <app-namespace>-<app-env> must exist first (kubectl create namespace ...).
+# Pods read the file at start: after a change, roll out the workloads that mount it.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: database-ca-configmap
+  namespace: <app-namespace>-<app-env>
+data:
+  ca.crt: |
+    -----BEGIN CERTIFICATE-----
+    <ca-certificate>
+    -----END CERTIFICATE-----

@@ -1,14 +1,15 @@
 # cms-api
 
 The CMS backend: a Bun server with Prisma on Postgres, serving REST under `/api/v1` and GraphQL.
-The cms-admin SPA calls it from the browser, and the frontend calls it from its server.
+The cms-admin SPA calls it from the browser, and web calls it from its server.
 
 - **Base:** `apps/cms-api/`
 - **Flux Kustomization:** `cms-api-sync` in the environment's namespace (`cluster-base/cms-api-sync.yaml`,
   image tag in `cluster/me/<env>/cms-api-sync-overlay.yaml`)
-- **ConfigMaps:** `shared-config` (template `templates/shared-configmap.example.yaml`)
-  and `cms-api-config` (template `templates/cms-api-configmap.example.yaml`), both in `<ns>`
-- **Secret:** `<APP_SERVICE_NAME>-<APP_ENV>-secrets` (template `templates/cms-api-secret.example.yaml`)
+- **ConfigMaps:** `shared-configmap` (template `templates/shared-configmap.example.yaml`)
+  and `api-configmap` (template `templates/api-configmap.example.yaml`), both in `<ns>`
+- **Secrets:** `api-secrets` for the main container (template `templates/api-secrets.example.yaml`) and
+  `api-init-secrets` for the init container only (template `templates/api-init-secrets.example.yaml`)
 
 Names below use `<name>` for `<APP_SERVICE_NAME>-<APP_ENV>` and `<ns>` for
 `<APP_NAMESPACE>-<APP_ENV>` (see [configuration.md](configuration.md)).
@@ -22,7 +23,7 @@ Names below use `<name>` for `<APP_SERVICE_NAME>-<APP_ENV>` and `<ns>` for
 | Ingress | `<name>` | `apps/cms-api/ingress.yaml` |
 | Middleware (Traefik) | `<name>-https-redirect` | `apps/cms-api/middleware.yaml` |
 
-All four are in `apps/cms-api/kustomization.yaml`, the same layout as cms-admin and frontend.
+All four are in `apps/cms-api/kustomization.yaml`, the same layout as cms-admin and web.
 
 ## Networking
 
@@ -35,13 +36,13 @@ All four are in `apps/cms-api/kustomization.yaml`, the same layout as cms-admin 
 | In-cluster URL | `http://<name>.<ns>.svc.cluster.local:<APP_PORT>` |
 
 The container command is `sh -c "PORT=${APP_PORT} exec bun dist/src/main"`. Setting `PORT` there
-overrides any `PORT` in the Secret, so the app and the Service always use the same port. The
+overrides any `PORT` in `api-secrets`, so the app and the Service always use the same port. The
 command must stay in sync with the `CMD` in the app repository's Dockerfile.
 
 ## Startup and probes
 
 1. **Init container `init`** (`<APP_IMAGE_REPO>:<APP_IMAGE_TAG>-init`) runs `prisma migrate deploy`
-   against the database in the Secret. If migrations fail, the app container never starts.
+   against the database in `api-init-secrets`. If migrations fail, the app container never starts.
 2. **Container `app`** (`<APP_IMAGE_REPO>:<APP_IMAGE_TAG>`) starts the server.
 
 | Probe | Check | Initial delay | Period |
@@ -69,7 +70,7 @@ Both endpoints are served outside the `/api/v1` prefix.
 and `APP_TLS_CLUSTER_ISSUER`. cms-api's own holds `APP_SERVICE_NAME`, `APP_IMAGE_REPO` and `APP_PORT`.
 `APP_IMAGE_TAG` is in the sync file.
 
-**Secret (for the app, via `envFrom` on both containers):**
+**Secret `api-secrets` (for the app container, via `envFrom`; the init container reads `api-init-secrets` instead):**
 
 | Group | Keys | Required |
 |---|---|---|
@@ -99,7 +100,7 @@ keys fail validation so the app won't boot. Don't set `PORT`. The full list is i
 
 - **Postgres** outside the cluster, reachable from the pod at `DB_HOST:DB_PORT`.
 - **Traefik** (k3s bundled) and **cert-manager** with the ClusterIssuer named in the shared ConfigMap.
-- **The namespace and Secret** must exist before the first reconcile.
+- **The namespace and Secrets** must exist before the first reconcile.
 - **Images:** the app repository must push both `<tag>` and `<tag>-init`.
 
 ## Known limits

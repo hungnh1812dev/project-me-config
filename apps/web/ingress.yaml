@@ -1,4 +1,4 @@
-# Public HTTPS entry for the frontend on the k3s-bundled Traefik, at the bare APP_DOMAIN
+# Public HTTPS entry for web on the k3s-bundled Traefik, at the bare APP_DOMAIN
 # (admin.<domain> is cms-admin, api.<domain> is cms-api). All paths go to the Service. cert-manager
 # issues the <svc>-<env>-tls certificate from the ClusterIssuer in ${APP_TLS_CLUSTER_ISSUER}.
 # Fail-closed on a missing APP_DOMAIN: a bare ${APP_DOMAIN} would substitute to nothing, which YAML

@@ -7,4 +7,4 @@ metadata:
 spec:
   postBuild:
     substitute:
-      APP_IMAGE_TAG: "dev"
+      APP_IMAGE_TAG: "main-51b183a"
