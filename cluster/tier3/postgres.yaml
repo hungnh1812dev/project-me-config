@@ -1,0 +1,148 @@
+# In-cluster Postgres of the tier 3 stack (ADR-0003 section 4). Throwaway: data lives in an emptyDir.
+# TLS comes from the local CA (ClusterIssuer tier3-ca), so cms-api connects with DB_SSL_MODE=verify-full.
+# Mode A (devops-runbook section 4.6): the image creates one role from api-init-secrets and owns the database.
+# APP-1 (open): roles, grants and extensions the cms-api migrations need belong in an init script here,
+# mounted at /docker-entrypoint-initdb.d, once the app team answers.
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: postgres-tls
+  namespace: project-me-tier3
+spec:
+  secretName: postgres-tls
+  commonName: postgres
+  dnsNames:
+    - postgres
+    - postgres.project-me-tier3.svc
+    - postgres.project-me-tier3.svc.cluster.local
+  privateKey:
+    algorithm: ECDSA
+    size: 256
+  issuerRef:
+    name: tier3-ca
+    kind: ClusterIssuer
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: postgres-hba
+  namespace: project-me-tier3
+data:
+  # Plaintext TCP is rejected, so a client that drops DB_SSL_MODE fails in tier 3 instead of passing.
+  # The unix socket is reachable only inside the pod (image entrypoint and local tools).
+  pg_hba.conf: |
+    local all all trust
+    hostssl all all all scram-sha-256
+    hostnossl all all all reject
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: postgres
+  namespace: project-me-tier3
+  labels:
+    app.kubernetes.io/name: postgres
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: postgres
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: postgres
+    spec:
+      automountServiceAccountToken: false
+      # 999 is the postgres user of the Debian image. The key file is root-owned, group 999, mode 0440,
+      # which Postgres accepts (owner root requires mode 0640 or stricter).
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 999
+        runAsGroup: 999
+        fsGroup: 999
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: postgres
+          image: postgres:17.6
+          args:
+            - -c
+            - ssl=on
+            - -c
+            - ssl_cert_file=/etc/postgres-tls/tls.crt
+            - -c
+            - ssl_key_file=/etc/postgres-tls/tls.key
+            - -c
+            - hba_file=/etc/postgres-hba/pg_hba.conf
+          env:
+            - name: POSTGRES_USER
+              valueFrom:
+                secretKeyRef:
+                  name: api-init-secrets
+                  key: DB_USERNAME
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: api-init-secrets
+                  key: DB_PASSWORD
+            - name: POSTGRES_DB
+              valueFrom:
+                secretKeyRef:
+                  name: api-init-secrets
+                  key: DB_NAME
+            - name: PGDATA
+              value: /var/lib/postgresql/data/pgdata
+          ports:
+            - name: postgres
+              containerPort: 5432
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/postgresql/data
+            - name: run
+              mountPath: /var/run/postgresql
+            - name: tls
+              mountPath: /etc/postgres-tls
+              readOnly: true
+            - name: hba
+              mountPath: /etc/postgres-hba
+              readOnly: true
+          readinessProbe:
+            exec:
+              command:
+                - sh
+                - -c
+                - pg_isready -h 127.0.0.1 -p 5432 -U "$POSTGRES_USER" -d "$POSTGRES_DB"
+            periodSeconds: 5
+            failureThreshold: 12
+      volumes:
+        - name: data
+          emptyDir: {}
+        - name: run
+          emptyDir: {}
+        - name: tls
+          secret:
+            secretName: postgres-tls
+            defaultMode: 0440
+        - name: hba
+          configMap:
+            name: postgres-hba
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres
+  namespace: project-me-tier3
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: postgres
+  ports:
+    - name: postgres
+      port: 5432
+      targetPort: postgres
