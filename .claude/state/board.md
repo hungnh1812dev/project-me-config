@@ -7,5 +7,10 @@ Open risks: Phase 1 and the rename must merge together (develop -> staging -> ma
 - Phase 1 (templates): checkpoint accepted, archived.
 - Rename frontend to web (RW-T1 to RW-T4): checkpoint accepted, archived. Not pushed; merge waits for the user's staging and prod cutover.
 
+## Direct requests
+| ID | Title | Scope | Status | Commit |
+|---|---|---|---|---|
+| DR1 | Note in deployment docs: web reads web-secrets | core-builder | done | bef7be3 |
+
 ## Notes
 - Follow-up: APP_API_URL removal once the frontend image reads API_INTERNAL_URL.

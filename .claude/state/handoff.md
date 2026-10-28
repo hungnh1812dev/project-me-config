@@ -11,6 +11,7 @@ Updated: 2026-10-27 after user answers on the frontend-to-web rename
 - RW-T2 Apply configmap/secrets naming in Flux and Deployments - awaiting security review/commit; next: RW-T3
 - RW-T3 Template names and object names - awaiting security review/commit; next: RW-T4
 - RW-T4 Docs rename to web and cutover steps - awaiting commit (no security gate); next: merge to develop, then user cutover per docs/DEPLOYMENT.md section 17
+- DR1 Note in deployment docs: web reads web-secrets - awaiting commit (docs only); next: commit
 - PLAN (template task, Phase 1) - plan in .claude/state/tasks/phase-1.md. Waiting for user approval of the task list and of adding docs/components/configuration.md to core-builder scope. Not yet approved.
 - user answers:
   - Source of truth when docs disagree: Supabase production docs.
@@ -90,7 +91,15 @@ Updated: 2026-10-27 after user answers on the frontend-to-web rename
 ## Direct requests
 - Rename frontend to web across the deploy repo (see above). Route: planner. Planner has not yet produced the plan.
 
-## Open design question (DevOps risk)
+### DR1 Note in deployment docs: web reads web-secrets
+- In the three deployment docs (deployment/k3s-secrets-sops.md section 6, deployment/devops-runbook.md around line 189, deployment/k3s-traefik.md section 4), add a short note: in this repo web loads web-secrets through envFrom (API_INTERNAL_URL, APP_API_URL transition key and the other web keys). Do not change any key or value. Doc-only change.
+
+## Open design question (DevOps risk) - answers (user, 2026-10-28)
+- Keep APP_API_URL in web-secrets next to API_INTERNAL_URL (option A, both keys): YES.
+- Removal of APP_API_URL: the app team says when the web image reads API_INTERNAL_URL (release note or PR for the image tag); then user asks for a removal task.
+- Prod: same web-secrets template as staging: YES.
+- Deployment docs (k3s-secrets-sops.md, devops-runbook.md, k3s-traefik.md) say web uses plain env, but repo uses web-secrets via envFrom: keep repo as is; add a short doc note that this repo uses web-secrets for web. YES.
+- Open, not answered: point 2 (what the running image uses APP_API_URL for; confirm same cms-api base with /api/v1, from the app repo). Also WEB_PORT: k3s-traefik.md says 8080 as image default; apps/web and docs/components/web.md say 3000. Needs user answer.
 - Asked by user, from DevOps team: renaming the frontend env var APP_API_URL to API_INTERNAL_URL in the template. Risk as stated: the running frontend image still reads APP_API_URL; a Secret created from the new template lacks it, and the frontend fails until the app reads API_INTERNAL_URL.
 - Ask the planner (DESIGN): assess this risk against the current deploy repo and the rename plan, and give options (for example keeping both keys during transition, or ordering the app change first). Planner returns options and open questions; no decision by manager.
 - Status: planner returned options A-D (no files changed). User DECIDED option A: keep both keys during transition (API_INTERNAL_URL added; APP_API_URL kept with a note to remove once the image reads the new key). Applies to P1-T4 and the frontend Secret. Not yet applied to the template files. Other open points for the user: (2) what the running image uses APP_API_URL for; (3) Secret name mismatch (`web-secrets` read by envFrom vs `<app>-<env>-secrets` in template); (4) whether Q3 keeps APP_API_URL in the web Secret; (5) who signals removal; (6) prod follows the same option.

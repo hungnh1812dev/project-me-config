@@ -212,3 +212,12 @@ Build order: P1-T1 and P1-T4 (parallel) -> P1-T2 -> P1-T3 -> P1-T5. Manifest wir
 Depends on the rename (frontend -> web; separate request, not in Phase 1): `apps/frontend/` folder, `cluster-base/frontend-sync.yaml` and the `frontend-sync` name, the overlays `cluster/me/<env>/frontend-sync-overlay.yaml`, `APP_SERVICE_NAME` value `web`, `docs/components/frontend.md`, and the comments that still say "frontend". Object names and template file names are already `web-*` after Phase 1.
 
 Follow-ups (not in Phase 1): mount `database-ca-configmap` in both cms-api containers (needed for `verify-full`); remove `APP_API_URL` from `web-secrets` once the image reads `API_INTERNAL_URL`.
+
+## Design: `APP_API_URL` -> `API_INTERNAL_URL` (option A, user decision 2026-10-28)
+
+- Decision: during the transition `web-secrets` carries both keys, pointing at the same cms-api base (`.../api/v1`). `API_INTERNAL_URL` is the doc key (`k3s-traefik.md` §4); `APP_API_URL` stays active in its own `transition` block until the web image reads `API_INTERNAL_URL`. A Secret created from the template therefore works with today's image and with the next one.
+- Status: already applied by P1-T4 (`templates/web-secrets.example.yaml`, checked 2026-10-28). No new build task.
+- Owner: `templates/web-secrets.example.yaml` is the only file that lists the web runtime keys; `apps/web/deployment.yaml` loads it whole (`envFrom: web-secrets`) and needs no change for a key added or removed.
+- Extension path: the next renamed app key follows the same steps: add the new key next to the old one in that app's `<prefix>-secrets` template, mark the old one `transition`, remove it in one later edit of the same file once the image reads the new key.
+- Removal (later, one task): delete the `transition` block from `templates/web-secrets.example.yaml`, then the user removes `APP_API_URL` from each live `web-secrets` and restarts web. Waits on the open questions below.
+- Open (user): what the running image uses `APP_API_URL` for; who signals that the image reads `API_INTERNAL_URL`; prod follows the same option; whether the deployment docs (web: no Secret, plain `env`) or the repo (`web-secrets` via `envFrom`) is the target.
