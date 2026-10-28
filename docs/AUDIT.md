@@ -79,6 +79,8 @@ app repository this was copied from.
 
 ### 4. Pods run without a security context — High, Partially fixed
 
+**Status update:** `runAsNonRoot: true` is now set on all three pods, and cms-admin runs on `nginx-unprivileged` with no added capabilities. The text below is the original finding.
+
 None of the three Deployments set a `securityContext`, and all mounted a service-account token
 they never use. A compromised container could escalate privileges, use every default Linux
 capability, and call the Kubernetes API with the pod's token.

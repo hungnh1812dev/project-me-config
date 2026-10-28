@@ -310,7 +310,7 @@ The probe on `/` renders the home page on the server, which fetches content from
 
 ## 5. cms-admin
 
-Static files on `nginx-unprivileged` (uid 101, port 8080). `VITE_API_BASE_URL` is a **build arg**: the full API base, for example `https://domain.com/api/v1`. The CSP `connect-src` is derived from it at container start; `CSP_CONNECT_SRC` (space-separated origins) overrides it at run time if the API origin ever differs. No other runtime configuration. Probe `GET /` on 8080.
+Static files on `nginx-unprivileged` (uid 101, port 8080). `VITE_API_BASE_URL` is a **build arg**: the full API base, for example `https://api.<domain>/api/v1`. The CSP `connect-src` is derived from it at container start; `CSP_CONNECT_SRC` (space-separated origins) overrides it at run time if the API origin ever differs. No other runtime configuration. Probe `GET /` on 8080.
 
 ```yaml
 containers:

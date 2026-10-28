@@ -180,7 +180,8 @@ done
 # Shared: APP_NAME, APP_NAMESPACE + APP_ENV (together = <ns>), APP_DOMAIN (different per environment,
 #   e.g. staging.<domain>), APP_TLS_CLUSTER_ISSUER.
 # Per app: APP_SERVICE_NAME (cms-api, cms-admin, web), APP_IMAGE_REPO,
-#   APP_PORT (cms-api and web; "3000" for web).
+#   APP_PORT (cms-api and web: 1024 or higher; recommended value = the image port in the
+#   image table of deployment/k3s-traefik.md).
 for f in shared api admin web; do
   kubectl apply --server-side -f templates/$f-configmap-<env>.yaml
 done
@@ -211,9 +212,10 @@ Use `--server-side`. A plain `kubectl apply` also stores every value in plain te
 Values that link the services together:
 
 - cms-api `CORS_ORIGINS` must include `https://admin.<domain>`.
-- web `CMS_API_URL` / `GRAPHQL_URL` should use the in-cluster cms-api Service
-  (`http://cms-api-<APP_ENV>.<ns>.svc.cluster.local:<APP_PORT>`).
-- web `REVALIDATE_SECRET` must match the value cms-api sends.
+- web `API_INTERNAL_URL` uses the in-cluster cms-api Service
+  (`http://cms-api-<APP_ENV>.<ns>.svc.cluster.local:<cms-api APP_PORT>/api/v1`).
+- cms-api `DB_SSL_ROOT_CERT_PATH` (in `api-secrets` and `api-init-secrets`) points to `ca.crt` in the
+  `database-ca` mount directory of `apps/cms-api/deployment.yaml`.
 
 Keys per service: [cms-api](components/cms-api.md#configuration),
 [web](components/web.md#configuration).
@@ -259,10 +261,10 @@ kubectl -n <ns> get certificate              # one <name>-tls per service, READY
 Certificates can take a minute or two. Then check each site over HTTPS:
 
 ```bash
-curl -I https://<domain>/api/health/ready    # web: 200
-curl -I https://admin.<domain>/health/ready  # cms-admin: 200
-curl -I https://api.<domain>/health/ready    # cms-api: 200
-curl -I http://<domain>                      # 301/308 redirect to https
+curl -fsSI https://<domain>/                          # web: 200
+curl -fsSI https://admin.<domain>/                   # cms-admin: 200
+curl -fsS https://api.<domain>/api/v1/health/ready   # cms-api: ok
+curl -I http://<domain>                              # 301/308 redirect to https
 ```
 
 ## 11. Update image tags from the app repository
@@ -478,11 +480,10 @@ cms-admin is live on prod, so finish steps 1 to 3 on prod before the `staging` -
    `frontend-sync-overlay.yaml` (owned by the app team; tell them when you merge).
 
 5. Check after Flux applies: `flux -n <ns> get kustomizations` shows `cms-api-sync`,
-   `cms-admin-sync` and `web-sync` Ready and no `frontend-sync` (on prod, `cms-api-sync` and
-   `web-sync` stay as before, because their overlays are commented out);
+   `cms-admin-sync` and `web-sync` Ready and no `frontend-sync` (prod runs all three);
    `kubectl -n <ns> rollout status deploy/cms-admin-<env>`; where cms-api runs,
    `kubectl -n <ns> logs deploy/cms-api-<env> -c init` shows the migration finished and
-   `kubectl -n <ns> exec deploy/cms-api-<env> -c app -- ls /etc/abyss/database-ca/ca.crt` prints
+   `kubectl -n <ns> exec deploy/cms-api-<env> -c app -- ls /etc/project-me/database-ca/ca.crt` prints
    the path. On staging also `rollout status deploy/cms-api-staging` and `deploy/web-staging`.
 
 6. Only after step 5 passes, delete the old objects yourself: ConfigMaps `shared-config`,
@@ -492,3 +493,69 @@ cms-admin is live on prod, so finish steps 1 to 3 on prod before the `staging` -
 Rollback before step 6: revert the merge on the branch; the old objects still exist, so Flux returns
 to the old names. A missing ConfigMap fails the sync Kustomization before anything is applied. A
 missing Secret leaves the new pod in `CreateContainerConfigError` while the old pod keeps serving.
+
+## 18. Update for the current images
+
+The cms-api, web and cms-admin manifests match the current images: cms-api runs `node dist/main.js`
+with `/api/v1/health/*` probes and one image tag for the init and app containers; web probes `/`;
+cms-admin runs on `nginx-unprivileged`. The listen port of cms-api and web comes from `APP_PORT` in
+their own ConfigMap. cms-api and web run on prod as well. Do this on staging first, then prod. Never
+write real values into committed files.
+
+Do actions 1 to 3 on each cluster **before** the reconcile that rolls out the merged change. On
+prod, do them before the `staging` -> `main` merge, or cms-api fails to start:
+
+1. In `api-secrets` and in `api-init-secrets`, set `DB_SSL_ROOT_CERT_PATH` to `ca.crt` in the
+   directory of the `database-ca` mount (the `mountPath` in `apps/cms-api/deployment.yaml`, then
+   `/ca.crt`). Re-apply both with `kubectl apply --server-side`. If one is missed, `verify-full`
+   stops the process at boot and names the key.
+2. In `api-configmap` set `APP_PORT` to `<api-port>`, and in `web-configmap` set `APP_PORT` to
+   `<web-port>`. Any value of 1024 or higher works; the recommended values are the image ports in
+   the image table of `deployment/k3s-traefik.md`. Re-apply both. If `<api-port>` differs from the
+   port in `API_INTERNAL_URL`, update `web-secrets` too.
+3. Prod only: in `project-me-prod`, create the objects that do not exist there yet:
+   `api-configmap`, `web-configmap`, `api-secrets`, `api-init-secrets`, `web-secrets` (from the
+   trimmed template: `API_INTERNAL_URL` and `WEB_REVALIDATE_SECONDS`) and `database-ca-configmap`.
+   Check them:
+
+   ```bash
+   kubectl -n project-me-prod get configmap api-configmap web-configmap database-ca-configmap
+   kubectl -n project-me-prod get secret api-secrets api-init-secrets web-secrets
+   ```
+
+4. Staging, after the merge to `staging` and before the merge to `main`: re-apply `web-secrets`
+   from the trimmed template with `kubectl apply --server-side -f templates/web-secrets.yaml`,
+   then check that only the kept keys are left:
+
+   ```bash
+   kubectl -n <ns> get secret web-secrets -o json | jq -r '.data | keys[]'
+   ```
+
+   Server-side apply removes only keys that the same field manager applied before. If dropped keys
+   are still there, remove each one yourself
+   (`kubectl -n <ns> patch secret web-secrets --type=json -p '[{"op":"remove","path":"/data/<KEY>"}]'`).
+   Then `kubectl -n <ns> rollout restart deploy/web-<env>` and repeat the staging checks.
+
+Merge order: `develop` -> `staging`, reconcile and check staging, then `staging` -> `main` and check
+prod.
+
+```bash
+flux -n <ns> reconcile kustomization cms-api-sync --with-source
+flux -n <ns> reconcile kustomization web-sync --with-source
+flux -n <ns> reconcile kustomization cms-admin-sync --with-source
+flux -n <ns> get kustomizations              # all Ready True
+kubectl -n <ns> rollout status deploy/cms-api-<env>
+kubectl -n <ns> rollout status deploy/web-<env>
+kubectl -n <ns> logs deploy/cms-api-<env> -c init      # migrations finished
+kubectl -n <ns> exec deploy/cms-api-<env> -c app -- ls /etc/project-me/database-ca/ca.crt
+curl -fsS https://api.<domain>/api/v1/health/ready     # ok
+curl -fsSI https://<domain>/                           # 200
+curl -fsSI https://admin.<domain>/                     # 200
+```
+
+On prod also check that `kubectl -n project-me-prod get secret web-secrets -o json | jq -r '.data | keys[]'`
+lists only the kept keys.
+
+Rollback: revert the merge commit on the branch and reconcile. On prod, reverting the commit that
+enabled the cms-api and web overlays (`cluster/me/prod/kustomization.yaml`) makes Flux prune their
+workloads; the hand-made Secrets and ConfigMaps stay.
