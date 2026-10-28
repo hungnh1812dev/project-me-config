@@ -26,7 +26,7 @@ Names below use `<name>` for `<APP_SERVICE_NAME>-<APP_ENV>` (see
 
 | | Value |
 |---|---|
-| Host | `<APP_DOMAIN>` (the bare domain), all paths |
+| Host | `<APP_DOMAIN>` (the bare domain), all paths except `/api/v1`, which cms-api's Ingress serves ([ADR-0002](../adr/0002-api-route-on-web-domain.md)) |
 | TLS | `<name>-tls`, issued by cert-manager from `APP_TLS_CLUSTER_ISSUER` |
 | HTTP | permanently redirected to HTTPS by the Middleware |
 | Port | `APP_PORT` (1024 or higher) for the container (named `http`) and the Service |
@@ -73,6 +73,7 @@ and `APP_TLS_CLUSTER_ISSUER`. web's own holds `APP_SERVICE_NAME`, `APP_IMAGE_REP
 |---|---|---|
 | `API_INTERNAL_URL` | yes | cms-api base URL for server-side calls, never sent to the browser |
 | `WEB_REVALIDATE_SECONDS` | yes | Seconds the data cache keeps server-side fetches (0 disables the cache) |
+| `WEB_STATUS_PAGE_ENABLED` | no | `true` shows `/status`; unset or `false` answers 404 |
 
 No other key is read. Don't set `PORT` or `WEB_PORT` in the Secret: the Deployment sets `PORT` from
 `APP_PORT`. `API_INTERNAL_URL` uses the in-cluster Service, so requests don't go out through
@@ -80,8 +81,9 @@ Traefik and back:
 `http://cms-api-<APP_ENV>.<APP_NAMESPACE>-<APP_ENV>.svc.cluster.local:<cms-api APP_PORT>/api/v1`.
 If cms-api's `APP_PORT` changes, update `API_INTERNAL_URL` here too.
 
-The browser-side API base is a build variable of the image, `NEXT_PUBLIC_API_BASE_URL`, set to
-`https://api.<APP_DOMAIN>/api/v1`. Changing it needs a rebuild.
+The browser calls cms-api on its own origin, at `/api/v1` (routed by cms-api's Ingress, see
+[ADR-0002](../adr/0002-api-route-on-web-domain.md)). The base is a build variable of the image,
+`NEXT_PUBLIC_API_BASE_URL`, set by the app team. Changing it needs a rebuild.
 
 The same template serves staging and prod. After a trim, re-apply it with `--server-side` and check
 that the Secret holds only these keys:

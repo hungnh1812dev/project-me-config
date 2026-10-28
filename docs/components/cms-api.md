@@ -29,8 +29,8 @@ All four are in `apps/cms-api/kustomization.yaml`, the same layout as cms-admin 
 
 | | Value |
 |---|---|
-| Host | `api.<APP_DOMAIN>`, all paths |
-| TLS | `<name>-tls`, issued by cert-manager from `APP_TLS_CLUSTER_ISSUER` |
+| Host | `api.<APP_DOMAIN>`, all paths; `<APP_DOMAIN>`, only `/api/v1` (browser calls from web, [ADR-0002](../adr/0002-api-route-on-web-domain.md)) |
+| TLS | `<name>-tls`, one certificate for both hosts, issued by cert-manager from `APP_TLS_CLUSTER_ISSUER` |
 | HTTP | permanently redirected to HTTPS by the Middleware |
 | Port | `APP_PORT` (1024 or higher) for the container (named `http`), the Service and `PORT` in the app |
 | In-cluster URL | `http://<name>.<ns>.svc.cluster.local:<APP_PORT>` |
@@ -74,15 +74,17 @@ and `APP_TLS_CLUSTER_ISSUER`. cms-api's own holds `APP_SERVICE_NAME`, `APP_IMAGE
 
 | Group | Keys | Required |
 |---|---|---|
-| JWT | `JWT_ACCESS_SECRET`, `JWT_REFRESH_SECRET` | yes |
-| Cookie | `COOKIE_SECURE`, `COOKIE_SAMESITE` | |
-| CORS | `CORS_ORIGINS` (comma-separated exact origins, e.g. `https://admin.<domain>`) | yes |
-| Proxy | `TRUST_PROXY` (`1` = the Traefik hop) | |
-| Database | `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USERNAME`, `DB_PASSWORD` | yes |
-| Storage | `STORAGE_PROVIDER` + `CLOUDINARY_*` or `AWS_*` | |
-| Email | `EMAIL_PROVIDER`, `EMAIL_FROM` + provider keys (`SMTP_*`, `GMAIL_*`, `RESEND_API_KEY`, `BREVO_API_KEY`) | |
-| Redis | `REDIS_ENABLED`, `REDIS_URL` (required if enabled) | |
-| Limits | `RATE_LIMIT_FPS`, `RATE_LIMIT_BURST`, `MEDIA_MAX_UPLOAD_BYTES`, `CONTENT_TYPES_DIR` | |
+| Database login | `DB_USERNAME`, `DB_PASSWORD` | yes |
+| Database connection | `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_SSL_MODE`, `DB_SSL_ROOT_CERT_PATH` | yes |
+| Tokens and keys | `JWT_ACCESS_SECRET`, `OTP_PEPPER`, `TOTP_ENC_KEY`, `JWT_ACCESS_KID`, `TOTP_ENC_KID`, `TOTP_ISSUER` | yes |
+| Key rotation | `TOTP_ENC_PREVIOUS_KEY`, `TOTP_ENC_PREVIOUS_KID` | |
+| First install | `OWNER_SETUP_TOKEN` (remove after the owner exists) | |
+| Runtime | `NODE_ENV`, `TRUST_PROXY_HOPS`, `CLIENT_IP_HEADER` (behind Cloudflare only) | `NODE_ENV`, `TRUST_PROXY_HOPS` |
+| Origins | `ADMIN_ORIGIN` (the only CORS origin), `WEB_ORIGIN` | yes |
+| Mail | `MAIL_PROVIDER`, `MAIL_FROM`, `SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURE`, `SMTP_USER`, `SMTP_PASSWORD` (the two `SMTP_USER`/`SMTP_PASSWORD` go together) | yes |
+| Media | `MEDIA_PROVIDER`, `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY`, `CLOUDINARY_API_SECRET`, `CLOUDINARY_FOLDER` | yes |
+| Reviewer | `TURNSTILE_SECRET_KEY`, `TURNSTILE_EXPECTED_HOSTNAME`, `REVIEWER_FEATURE_ENABLED` (`true` or `false`; off when unset) | |
+| Backup download | `BACKUP_STORAGE_ENDPOINT`, `BACKUP_STORAGE_REGION`, `BACKUP_STORAGE_BUCKET`, `BACKUP_STORAGE_PREFIX`, `BACKUP_STORAGE_ACCESS_KEY_ID`, `BACKUP_STORAGE_SECRET_ACCESS_KEY` (all six or none; none turns the Backups page off) | |
 
 Leave optional keys out rather than setting them to `""`. An empty value counts as set, and some
 keys fail validation so the app won't boot. Don't set `PORT`. The full list is in

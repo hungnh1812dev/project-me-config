@@ -59,7 +59,7 @@ is not planned yet.
 | `APP_NAME` | shared ConfigMap | ✓ | ✓ | ✓ | The `app.kubernetes.io/name` label |
 | `APP_NAMESPACE` | shared ConfigMap | ✓ | ✓ | ✓ | Namespace base (the apps run in `<APP_NAMESPACE>-<APP_ENV>`) |
 | `APP_ENV` | shared ConfigMap | ✓ | ✓ | ✓ | Environment suffix on names and the namespace, e.g. `prod` |
-| `APP_DOMAIN` | shared ConfigMap | ✓ | ✓ | ✓ | Bare domain. Hosts: `api.<domain>`, `admin.<domain>`, `<domain>` |
+| `APP_DOMAIN` | shared ConfigMap | ✓ | ✓ | ✓ | Bare domain. Hosts: `<domain>` (web, and `/api/v1` to cms-api), `admin.<domain>`, `api.<domain>` |
 | `APP_TLS_CLUSTER_ISSUER` | shared ConfigMap | ✓ | ✓ | ✓ | cert-manager ClusterIssuer on each Ingress |
 | `APP_SERVICE_NAME` | per-app ConfigMap | ✓ | ✓ | ✓ | First part of every resource name. Must differ per service |
 | `APP_IMAGE_REPO` | per-app ConfigMap | ✓ | ✓ | ✓ | Image repository without a tag |

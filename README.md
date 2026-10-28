@@ -124,6 +124,7 @@ Anything pushed to `staging` or `main` is applied to that environment within a f
    curl -fsSI https://<domain>/                         # web: 200
    curl -fsSI https://admin.<domain>/                   # cms-admin: 200
    curl -fsS https://api.<domain>/api/v1/health/ready   # cms-api: ok
+   curl -fsS https://<domain>/api/v1/health/ready       # cms-api via the bare domain: ok
    ```
 
 4. Merge `staging` into `main` to deploy prod, then run the same checks against prod.

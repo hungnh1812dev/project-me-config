@@ -57,7 +57,7 @@ and `APP_TLS_CLUSTER_ISSUER`. cms-admin's own holds `APP_SERVICE_NAME` and `APP_
 `https://api.<APP_DOMAIN>/api/v1` in the app repository's build). To point cms-admin at a different API,
 rebuild the image. Changing the ConfigMap won't do it.
 
-cms-api must list `https://admin.<APP_DOMAIN>` in its `CORS_ORIGINS`, or the browser blocks
+cms-api must list `https://admin.<APP_DOMAIN>` as its `ADMIN_ORIGIN` (the only CORS origin), or the browser blocks
 every API call.
 
 ## Security
