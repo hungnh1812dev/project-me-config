@@ -1,5 +1,8 @@
-# Public HTTPS entry for cms-api on the k3s-bundled Traefik, at api.${APP_DOMAIN}. The bare domain
-# is for web and admin.<domain> is for cms-admin. All paths go to the Service.
+# Public HTTPS entry for cms-api on the k3s-bundled Traefik, with two routes to the Service:
+# api.<domain> takes all paths, and the bare <domain> takes only /api/v1 (the rest of the bare
+# domain is web, admin.<domain> is cms-admin). The bare host uses the fail-closed
+# ${APP_DOMAIN:=APP_DOMAIN-is-not-set} form like apps/web/ingress.yaml: a bare ${APP_DOMAIN} would
+# drop the host and make the rule a catch-all.
 # cert-manager issues the <svc>-<env>-tls certificate from the ClusterIssuer in
 # ${APP_TLS_CLUSTER_ISSUER}. If APP_DOMAIN is missing, Flux substitutes "" and the host becomes
 # "api.", which the API server rejects, so the Flux apply fails instead of exposing a catch-all.
@@ -19,6 +22,7 @@ spec:
   tls:
     - hosts:
         - api.${APP_DOMAIN}
+        - ${APP_DOMAIN:=APP_DOMAIN-is-not-set}
       secretName: ${APP_SERVICE_NAME}-${APP_ENV}-tls
   rules:
     - host: api.${APP_DOMAIN}
@@ -30,5 +34,17 @@ spec:
               service:
                 name: ${APP_SERVICE_NAME}-${APP_ENV}
                 # The Service's named port, so no numeric ${APP_PORT} lands here.
+                port:
+                  name: http
+    # web's browser calls use /api/v1 on the bare domain. The longer path wins over web's "/" rule.
+    # No StripPrefix: cms-api serves under /api/v1. See docs/adr/0002-api-route-on-web-domain.md.
+    - host: ${APP_DOMAIN:=APP_DOMAIN-is-not-set}
+      http:
+        paths:
+          - path: /api/v1
+            pathType: Prefix
+            backend:
+              service:
+                name: ${APP_SERVICE_NAME}-${APP_ENV}
                 port:
                   name: http
