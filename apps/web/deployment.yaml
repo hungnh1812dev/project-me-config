@@ -1,6 +1,6 @@
-# frontend Deployment: the Next.js standalone server (built from the app repository's
+# web Deployment: the Next.js standalone server (built from the app repository's
 # apps/frontend/Dockerfile). Runtime config and secrets come from the hand-made
-# <svc>-<env>-secrets Secret via envFrom (template: templates/frontend-secret.example.yaml).
+# web-secrets Secret via envFrom (template: templates/web-secrets.example.yaml).
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -39,7 +39,7 @@ spec:
               containerPort: ${APP_PORT}
           envFrom:
             - secretRef:
-                name: ${APP_SERVICE_NAME}-secrets
+                name: web-secrets
           env:
             # Auth.js v5 only trusts the request host when told to; behind Traefik it must be.
             - name: AUTH_TRUST_HOST
@@ -50,7 +50,7 @@ spec:
             - name: HOSTNAME
               value: "0.0.0.0"
           # /api/health/live only checks the Next server answers and never calls cms-api: a slow
-          # cms-api must not get the frontend restarted.
+          # cms-api must not get web restarted.
           livenessProbe:
             httpGet:
               path: /api/health/live

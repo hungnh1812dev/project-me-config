@@ -1,12 +1,12 @@
-# frontend: applies ./apps/frontend with ${APP_*} from the shared ConfigMap, then the frontend ConfigMap
-# (a key in both takes the frontend value). Environment-free: cluster/me/<env>/ puts it in the Flux
+# web: applies ./apps/web with ${APP_*} from shared-configmap, then web-configmap
+# (a key in both takes the web value). Environment-free: cluster/me/<env>/ puts it in the Flux
 # namespace, points sourceRef at that namespace's GitRepository and adds APP_IMAGE_TAG.
-# No dependsOn cms-api on purpose: the frontend's probes tolerate cms-api being down, and a
-# dependsOn would block frontend deploys whenever cms-api's Kustomization isn't Ready.
+# No dependsOn cms-api on purpose: web probes tolerate cms-api being down, and a
+# dependsOn would block web deploys whenever cms-api's Kustomization isn't Ready.
 apiVersion: kustomize.toolkit.fluxcd.io/v1
 kind: Kustomization
 metadata:
-  name: frontend-sync
+  name: web-sync
 spec:
   interval: 3m
   # A failed apply is retried sooner than the next interval.
@@ -17,7 +17,7 @@ spec:
     name: flux-system
   # Includes the public Traefik Ingress at the bare <domain>. Needs APP_DOMAIN and
   # APP_TLS_CLUSTER_ISSUER in the shared ConfigMap before this reaches the cluster.
-  path: ./apps/frontend
+  path: ./apps/web
   prune: true
   wait: true
   timeout: 5m
@@ -26,6 +26,6 @@ spec:
     # instead of rendering empty names.
     substituteFrom:
       - kind: ConfigMap
-        name: shared-config
+        name: shared-configmap
       - kind: ConfigMap
-        name: frontend-config
+        name: web-configmap

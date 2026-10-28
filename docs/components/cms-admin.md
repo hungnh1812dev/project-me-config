@@ -6,9 +6,9 @@ calls cms-api at `api.<domain>`.
 - **Base:** `apps/cms-admin/`
 - **Flux Kustomization:** `cms-admin-sync` in the environment's namespace (`cluster-base/cms-admin-sync.yaml`,
   image tag in `cluster/me/<env>/cms-admin-sync-overlay.yaml`)
-- **ConfigMaps:** `shared-config` (template `templates/shared-configmap.example.yaml`)
-  and `cms-admin-config` (template `templates/cms-admin-configmap.example.yaml`), both in `<ns>`
-- **Secret:** none
+- **ConfigMaps:** `shared-configmap` (template `templates/shared-configmap.example.yaml`)
+  and `admin-configmap` (template `templates/admin-configmap.example.yaml`), both in `<ns>`
+- **Secret:** `admin-secrets` (template `templates/admin-secrets.example.yaml`)
 
 Names below use `<name>` for `<APP_SERVICE_NAME>-<APP_ENV>` (see
 [configuration.md](configuration.md)).

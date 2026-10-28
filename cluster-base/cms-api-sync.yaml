@@ -1,4 +1,4 @@
-# cms-api: applies ./apps/cms-api with ${APP_*} from the shared ConfigMap, then the cms-api ConfigMap
+# cms-api: applies ./apps/cms-api with ${APP_*} from shared-configmap, then api-configmap
 # (a key in both takes the cms-api value). Environment-free: cluster/me/<env>/ puts it in the Flux
 # namespace, points sourceRef at that namespace's GitRepository and adds APP_IMAGE_TAG.
 apiVersion: kustomize.toolkit.fluxcd.io/v1
@@ -24,6 +24,6 @@ spec:
     # instead of rendering empty names.
     substituteFrom:
       - kind: ConfigMap
-        name: shared-config
+        name: shared-configmap
       - kind: ConfigMap
-        name: cms-api-config
+        name: api-configmap

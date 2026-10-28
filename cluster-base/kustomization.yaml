@@ -3,4 +3,4 @@ kind: Kustomization
 resources:
   - cms-api-sync.yaml
   - cms-admin-sync.yaml
-  - frontend-sync.yaml
+  - web-sync.yaml

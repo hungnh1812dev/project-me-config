@@ -1,0 +1,27 @@
+# admin ConfigMap template: the ${APP_*} values only cms-admin uses. The values shared by all
+# three apps (name, namespace, env, domain, TLS issuer) are in templates/shared-configmap.example.yaml;
+# cluster-base/cms-admin-sync.yaml reads that first and this second (postBuild.substituteFrom), so a key
+# set here overrides the shared one.
+# Placeholders only; never commit real values. Created by hand on the cluster, after the shared
+# ConfigMap and before cms-admin's first Flux deploy:
+#   cp templates/admin-configmap.example.yaml templates/admin-configmap.yaml   # gitignored; fill in values
+#   kubectl apply --server-side -f templates/admin-configmap.yaml
+# metadata.name is fixed (admin-configmap); metadata.namespace is the environment's namespace, the same
+# one as the shared ConfigMap.
+# Derived names: namespace <APP_NAMESPACE>-<APP_ENV>, resources <APP_SERVICE_NAME>-<APP_ENV>.
+# No APP_PORT: the Deployment uses containerPort 8080, the fixed port of the nginx-unprivileged
+# image (deployment/k3s-traefik.md section 5; apps/cms-admin/deployment.yaml).
+# The cms-api URL is NOT here: it's baked into the image at build time as a build arg.
+# Runtime values go in the Secret (templates/admin-secrets.example.yaml).
+# Quote every value: ConfigMap data must be strings. After a change, re-apply and run
+#   flux -n <APP_NAMESPACE>-<APP_ENV> reconcile kustomization cms-admin-sync
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: admin-configmap
+  namespace: <app-namespace>-<app-env>
+data:
+  # Service within the application (resources are named <APP_SERVICE_NAME>-<APP_ENV>)
+  APP_SERVICE_NAME: "<app-service-name>"
+  # Image repository without a tag (image <repo>:<tag>)
+  APP_IMAGE_REPO: "<registry/owner/repo/image>"
