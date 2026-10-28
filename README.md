@@ -121,9 +121,10 @@ Anything pushed to `staging` or `main` is applied to that environment within a f
    ```bash
    flux -n <ns> get kustomizations              # all four READY True
    kubectl -n <ns> get pods                     # all Running and READY 1/1
-   curl -I https://<domain>/api/health/ready    # web: 200
-   curl -I https://admin.<domain>/health/ready  # cms-admin: 200
-   curl -I https://api.<domain>/health/ready    # cms-api: 200
+   curl -fsSI https://<domain>/                         # web: 200
+   curl -fsSI https://admin.<domain>/                   # cms-admin: 200
+   curl -fsS https://api.<domain>/api/v1/health/ready   # cms-api: ok
+   curl -fsS https://<domain>/api/v1/health/ready       # cms-api via the bare domain: ok
    ```
 
 4. Merge `staging` into `main` to deploy prod, then run the same checks against prod.
@@ -131,8 +132,8 @@ Anything pushed to `staging` or `main` is applied to that environment within a f
 If a pod stays not Ready or keeps restarting, see
 [Troubleshooting](docs/DEPLOYMENT.md#14-troubleshooting) and [Rollback](docs/DEPLOYMENT.md#12-rollback).
 
-**Probe paths come from the app.** Every Deployment probes `…/health/live` (liveness) and
-`…/health/ready` (readiness); the paths are in each app's
+**Probe paths come from the app.** cms-api probes `/api/v1/health/live` and `/api/v1/health/ready`;
+web and cms-admin probe `/`. The paths are in each app's
 [component doc](docs/components/). When a change here adds or renames a probe path, the app image
 serving it must be deployed to that environment first. Otherwise the probes get 404s, the pods
 never become Ready, and liveness keeps restarting them.

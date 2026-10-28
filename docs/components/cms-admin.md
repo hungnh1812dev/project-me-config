@@ -29,20 +29,19 @@ Names below use `<name>` for `<APP_SERVICE_NAME>-<APP_ENV>` (see
 | Host | `admin.<APP_DOMAIN>`, all paths |
 | TLS | `<name>-tls`, issued by cert-manager from `APP_TLS_CLUSTER_ISSUER` |
 | HTTP | permanently redirected to HTTPS by the Middleware |
-| Port | container `80` (named `http`), Service `80` → `http` |
+| Port | container `8080` (named `http`), Service `80` → `http` |
 
-Port 80 comes from the image's nginx config, so it's fixed in the manifests instead of being a
-variable.
+Port 8080 comes from the image (`nginx-unprivileged`), so it's fixed in the manifests instead of
+being a variable until the image supports `ADMIN_PORT`.
 
 ## Probes
 
 | Probe | Check | Initial delay | Period |
 |---|---|---|---|
-| Readiness | `GET /health/ready` on `http` | — | 10s |
-| Liveness | `GET /health/live` on `http` | 5s | 20s |
+| Readiness | `GET /` on `http` | — | 10s |
+| Liveness | `GET /` on `http` | 5s | 20s |
 
-nginx answers both endpoints itself, with no file or upstream involved, so the probes don't depend
-on cms-api.
+nginx serves `index.html` at `/`, with no upstream involved, so the probes don't depend on cms-api.
 
 ## Resources (CPU / memory)
 
@@ -52,28 +51,21 @@ Requests 10m / 32Mi, limits 200m / 128Mi.
 
 **ConfigMaps (for Flux):** the shared one holds `APP_NAME`, `APP_NAMESPACE`, `APP_ENV`, `APP_DOMAIN`
 and `APP_TLS_CLUSTER_ISSUER`. cms-admin's own holds `APP_SERVICE_NAME` and `APP_IMAGE_REPO` (no
-`APP_PORT`: nginx's port 80 is fixed). `APP_IMAGE_TAG` is in the sync file.
+`APP_PORT`: port 8080 is fixed until the image supports `ADMIN_PORT`). `APP_IMAGE_TAG` is in the sync file.
 
-**Runtime:** nothing. The cms-api URL is built into the image (`VITE_API_URL`, from the
-`CMS_ADMIN_API_URL` variable in the app repository). To point cms-admin at a different API,
+**Runtime:** nothing. The cms-api URL is built into the image (`VITE_API_BASE_URL`, set to
+`https://api.<APP_DOMAIN>/api/v1` in the app repository's build). To point cms-admin at a different API,
 rebuild the image. Changing the ConfigMap won't do it.
 
-cms-api must list `https://admin.<APP_DOMAIN>` in its `CORS_ORIGINS`, or the browser blocks
+cms-api must list `https://admin.<APP_DOMAIN>` as its `ADMIN_ORIGIN` (the only CORS origin), or the browser blocks
 every API call.
 
 ## Security
 
 - `automountServiceAccountToken: false`.
-- Pod `seccompProfile: RuntimeDefault`.
-- Container: `allowPrivilegeEscalation: false`, `capabilities.drop: [ALL]`, then adds back
-  `NET_BIND_SERVICE`, `CHOWN`, `SETUID`, `SETGID`. Stock nginx starts as root to bind port 80 and
-  then switches to its worker user, and it needs those four capabilities to do that.
-- No `runAsNonRoot`, because stock nginx runs as root ([AUDIT.md](../AUDIT.md), finding 4).
-
-**Untested:** the capability set hasn't been run against the real image. If the pod crash-loops
-with a `chown` or `setgid` permission error, remove the `capabilities` block from
-`apps/cms-admin/deployment.yaml`. To fully harden it, switch to `nginxinc/nginx-unprivileged`
-(port 8080) as described in the audit.
+- Pod `seccompProfile: RuntimeDefault` and `runAsNonRoot: true`.
+- Container: `allowPrivilegeEscalation: false`, `capabilities.drop: [ALL]`, no capability added
+  back. `nginx-unprivileged` (uid 101) listens on 8080 and needs none.
 
 ## Dependencies
 

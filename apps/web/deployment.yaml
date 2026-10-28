@@ -1,5 +1,5 @@
 # web Deployment: the Next.js standalone server (built from the app repository's
-# apps/frontend/Dockerfile). Runtime config and secrets come from the hand-made
+# apps/web/Dockerfile). Runtime config and secrets come from the hand-made
 # web-secrets Secret via envFrom (template: templates/web-secrets.example.yaml).
 apiVersion: apps/v1
 kind: Deployment
@@ -20,9 +20,9 @@ spec:
     spec:
       # The app never calls the Kubernetes API, so it gets no service-account token.
       automountServiceAccountToken: false
-      # No runAsNonRoot yet: it depends on the image's USER (set in the app repo's Dockerfile), and
-      # a root image would then fail to start. See docs/AUDIT.md.
+      # The image runs as a numeric non-root user, checked by the app repo CI.
       securityContext:
+        runAsNonRoot: true
         seccompProfile:
           type: RuntimeDefault
       containers:
@@ -32,8 +32,12 @@ spec:
             allowPrivilegeEscalation: false
             capabilities:
               drop: ["ALL"]
-          # The image sets PORT (3000) and Next listens there. APP_PORT only tells Kubernetes that port,
-          # so it must equal the image's PORT. Unquoted on purpose: ports must be ints after substitution.
+          # The image CMD copies WEB_PORT (image default, see deployment/k3s-traefik.md section 4)
+          # into PORT. Setting PORT here makes APP_PORT the listen port. Keep in sync with the image
+          # CMD. It is a command and not an env entry because after Flux substitution
+          # value: "${APP_PORT}" reaches the API server as an int and is rejected.
+          command: ["sh", "-c", "PORT=${APP_PORT} exec node apps/web/server.js"]
+          # Unquoted on purpose: ports must be ints after substitution.
           ports:
             - name: http
               containerPort: ${APP_PORT}
@@ -41,29 +45,22 @@ spec:
             - secretRef:
                 name: web-secrets
           env:
-            # Auth.js v5 only trusts the request host when told to; behind Traefik it must be.
-            - name: AUTH_TRUST_HOST
-              value: "true"
             # Next's standalone server binds to $HOSTNAME. The image sets 0.0.0.0, but container
             # runtimes also set HOSTNAME (to the pod name); pinning it here makes the bind address
             # independent of how the runtime orders the two.
             - name: HOSTNAME
               value: "0.0.0.0"
-          # /api/health/live only checks the Next server answers and never calls cms-api: a slow
-          # cms-api must not get web restarted.
+          # `/` renders the home page, so a 200 means the Next server answers.
           livenessProbe:
             httpGet:
-              path: /api/health/live
+              path: /
               port: http
             initialDelaySeconds: 10
             periodSeconds: 20
-          # /api/health/ready always returns 200 (cms-api status is in the body), so this gates on
-          # the Next server answering requests. The route aborts its cms-api call after 5s
-          # (src/lib/health/checkApiHealth.ts), so the probe timeout must be longer, or a hanging
-          # cms-api would take the whole site out of rotation.
+          # The 8s timeout covers a slow cms-api call while `/` renders.
           readinessProbe:
             httpGet:
-              path: /api/health/ready
+              path: /
               port: http
             timeoutSeconds: 8
             periodSeconds: 10

@@ -24,6 +24,7 @@ data:
   APP_SERVICE_NAME: "<app-service-name>"
   # Image repository without a tag (image <repo>:<tag>)
   APP_IMAGE_REPO: "<registry/owner/repo/image>"
-  # Container + Service port. Must equal the image's listen port (WEB_PORT in web-secrets, or the
-  # image default); it doesn't change what the server listens on.
+  # Listen port: the Deployment sets it as PORT, and it is the containerPort and Service port.
+  # 1024 or higher. Recommended value: the image's listen port in the image table of
+  # deployment/k3s-traefik.md.
   APP_PORT: "<port>"

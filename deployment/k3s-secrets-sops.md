@@ -186,7 +186,7 @@ The owner is created through the setup page with `OWNER_SETUP_TOKEN` (see sectio
 
 **web:** no Secret and no `envFrom` of a Secret. Its `NEXT_PUBLIC_*` values are build arguments (GitHub Environment variables) and its runtime values (`API_INTERNAL_URL`, `WEB_REVALIDATE_SECONDS`) are plain `env` entries. The server calls cms-api anonymously.
 
-Note: In this repo (`apps/web`), web loads the Secret `web-secrets` through `envFrom`: `API_INTERNAL_URL`, the transition key `APP_API_URL` (kept until the web image reads `API_INTERNAL_URL`) and the other web keys. The plain-`env` description here is the reference design, not what this repo deploys.
+Note: In this repo (`apps/web`), web loads the Secret `web-secrets` through `envFrom`: `API_INTERNAL_URL` and `WEB_REVALIDATE_SECONDS`. The plain-`env` description here is the reference design, not what this repo deploys.
 
 **cms-admin:** no Secret. `VITE_API_BASE_URL` is a build arg and `CSP_CONNECT_SRC` an optional plain env value.
 
